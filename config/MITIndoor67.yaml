@@ -1,0 +1,20 @@
+DATASET:
+  NAME: MITIndoor67
+  ROOT: /home/paul/datasets/MITIndoor67
+  TRAIN: train
+  VAL: val
+
+MODEL:
+  ARCH: 50
+  OUTPUT: ./logs
+
+TRAINING:
+  EPOCH: 50
+  BATCH_SIZE: 64
+
+VALIDATION:
+  BATCH_SIZE: 64
+
+TESTING:
+  BATCH_SIZE: 64
+  CHECKPOINT: 50
