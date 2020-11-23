@@ -12,14 +12,19 @@ args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 
 if __name__ == "__main__":
-    train_loader, val_loader, class_names = get_data(root=CONFIG['DATASET']['ROOT'])
+    train_loader, val_loader, class_names = get_data(dataset=CONFIG['DATASET']['NAME'],
+                                                     root=CONFIG['DATASET']['ROOT'],
+                                                     ten_crops=CONFIG['TESTING']['TEN_CROPS'])
     model = resnet50(pretrained=True, num_classes=len(class_names), num_features=512)
     # Load the last epoch checkpoint
-    checkpoint = osp.join(CONFIG['MODEL']['OUTPUT'], 'model_{}.pth.tar'.format(CONFIG['TESTING']['CHECKPOINT']))
+    checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'],
+                          'model_{}.pth.tar'.format(CONFIG['TESTING']['CHECKPOINT']))
     print()
-    print("Checkpoint loaded!")
+    print(f"Checkpoint:  {checkpoint}!")
+    print("Checkpoint loaded!! ")
     model.load_state_dict(torch.load(checkpoint))
     if torch.cuda.is_available():
         model = model.cuda()
-    evaluate = Evaluation(model=model,  dataloader=val_loader, classes=class_names)
+    evaluate = Evaluation(model=model,  dataloader=val_loader, classes=class_names,
+                          ten_crops=CONFIG['TESTING']['TEN_CROPS'])
     evaluate.test(topk=(1, 2, 5))

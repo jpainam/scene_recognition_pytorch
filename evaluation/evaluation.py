@@ -4,30 +4,32 @@ import torch
 import time
 from .classification import accuracy
 from torch import nn
-
+from torch.backends import cudnn
 
 class Evaluation(object):
-    def __init__(self, model, dataloader, classes):
+    def __init__(self, model, dataloader, classes, ten_crops):
         self.model = model
         self.model.eval()
         self.dataloader = dataloader
         self.classes = classes
         self.use_cuda = torch.cuda.is_available()
+        cudnn.benchmark = self.use_cuda
         self.criterion = nn.CrossEntropyLoss()
+        self.ten_crops = ten_crops
 
     def test(self, topk=(1,)):
         # Evaluate model on validation set
-        ValHist = 67
+
         val_top1, val_top2, val_top5, val_loss, val_ClassTPDic = self.__eval(topk)
 
         # Save Validation Class Accuracy
-        val_ClassAcc_top1 = (val_ClassTPDic['Top1'] / (ValHist + 0.0001)) * 100
+        val_ClassAcc_top1 = (val_ClassTPDic['Top1'] / len(self.classes)) * 100
         np.savetxt('ValidationTop1ClassAccuracy.txt', np.transpose(val_ClassAcc_top1),'%f')
 
-        val_ClassAcc_top2 = (val_ClassTPDic['Top2'] / (ValHist + 0.0001)) * 100
+        val_ClassAcc_top2 = (val_ClassTPDic['Top2'] /len(self.classes)) * 100
         np.savetxt('ValidationTop2ClassAccuracy.txt', np.transpose(val_ClassAcc_top2), '%f')
 
-        val_ClassAcc_top5 = (val_ClassTPDic['Top5'] / (ValHist + 0.0001)) * 100
+        val_ClassAcc_top5 = (val_ClassTPDic['Top5'] / len(self.classes)) * 100
         np.savetxt('ValidationTop5ClassAccuracy.txt', np.transpose(val_ClassAcc_top5), '%f')
 
         # Print complete evaluation information
@@ -63,7 +65,14 @@ class Evaluation(object):
                 if self.use_cuda:
                     images, labels = images.cuda(), labels.cuda()
 
+                if self.ten_crops:
+                    bs, ncrops, c, h, w = images.size()
+                    images = images.view(-1, c, h, w)
+
                 outputs = self.model(images)
+                if self.ten_crops:
+                    outputs = outputs.view(bs, ncrops, -1).mean(1)
+
                 loss = self.criterion(outputs, labels)
                 prec1, prec2, prec5 = accuracy(outputs.data, labels.data, topk)
 

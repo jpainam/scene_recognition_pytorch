@@ -3,27 +3,33 @@ from models.resnet import *
 from torch import nn
 import sys
 import os.path as osp
-from utils.loggers import Logger
+from utils.loggers import Logger, mkdir_if_missing
 import time
 from evaluation.classification import accuracy
 from utils.meters import AverageMeter
 from data.data_manager import get_data
 import argparse
 import yaml
+from tensorboardX import SummaryWriter
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 
-save_dir = osp.join(CONFIG['MODEL']['OUTPUT'], CONFIG['DATASET']['NAME'])
+save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'])
+mkdir_if_missing(save_dir)
+mkdir_if_missing(CONFIG['MODEL']['CHECKPOINTS'])
 log_name = f"train_{time.strftime('-%Y-%m-%d-%H-%M-%S')}.log"
 sys.stdout = Logger(osp.join(save_dir, log_name))
+
+timestamp = time.strftime("0:%Y-%m-%dT%H-%M-%S")
+summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp))
 
 
 if __name__ == "__main__":
 
-    train_loader, val_loader, class_names = get_data(root=CONFIG['DATASET']['ROOT'])
+    train_loader, val_loader, class_names = get_data(dataset=CONFIG['DATASET']['NAME'], root=CONFIG['DATASET']['ROOT'])
     model = resnet50(pretrained=True, num_classes=len(class_names), num_features=512)
 
     ignored_params = list(map(id, model.classifier.parameters()))
@@ -78,6 +84,14 @@ if __name__ == "__main__":
                 prec2.update(prec[1].item(), labels.size(0))
                 prec5.update(prec[2].item(), labels.size(0))
 
+                # tensorboard
+                if summary_writer is not None:
+                    global_step = epoch * len(dataloader[phase]) + i
+                    summary_writer.add_scalar(f'{phase}_loss', loss.item(), global_step)
+                    summary_writer.add_scalar(f'{phase}_prec1', prec[0].item(), global_step)
+                    summary_writer.add_scalar(f'{phase}_prec2', prec[1].item(), global_step)
+                    summary_writer.add_scalar(f'{phase}_prec5', prec[2].item(), global_step)
+
                 if phase == "train":
                     optimizer.zero_grad()
                     loss.backward()
@@ -107,13 +121,14 @@ if __name__ == "__main__":
                           # batch_time.val, batch_time.avg,
                           # data_time.val, data_time.avg,
                           losses.val, losses.avg,
-                          prec1.val, prec2.avg,
+                          prec1.val, prec1.avg,
                           prec2.val, prec2.avg,
                           prec5.val, prec5.avg))
             print()
 
         scheduler.step()
         if (epoch + 1) % 10 == 0:
-            torch.save(model.state_dict(), f'./logs/model_{epoch + 1}.pth.tar')
+            checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'])
+            torch.save(model.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
 
         print()

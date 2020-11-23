@@ -1,15 +1,15 @@
 DATASET:
-  NAME: MITIndoor67
-  ROOT: /home/paul/datasets/MITIndoor67
-  TRAIN: train
-  VAL: val
+  NAME: ADE20K
+  ROOT: /home/paul/datasets/ADEChallengeData2016
+  TRAIN: images/training
+  VAL: images/validation
 
 MODEL:
   ARCH: 50
   CHECKPOINTS: ./checkpoints
 
 TRAINING:
-  EPOCH: 30
+  EPOCH: 50
   BATCH_SIZE: 64
   LOG_DIR: ./logs
 
@@ -19,4 +19,4 @@ VALIDATION:
 TESTING:
   BATCH_SIZE: 64
   CHECKPOINT: 30
-  TEN_CROPS: FALSE
+  TEN_CROPS: TRUE
