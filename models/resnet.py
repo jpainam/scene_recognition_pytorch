@@ -41,6 +41,7 @@ class ResNet(nn.Module):
         self.depth = depth
         self.pretrained = pretrained
         self.num_features = num_features
+        self.has_embedding = num_features > 0
         self.norm = norm
         self.num_classes = num_classes
 
@@ -65,7 +66,7 @@ class ResNet(nn.Module):
             self.num_features = out_planes
 
         if dropout > 0:
-            self.drop - nn.Dropout(self.dropout)
+            self.drop = nn.Dropout(self.dropout)
 
         self.pool = pool
         if "avg" in pool:
@@ -76,9 +77,11 @@ class ResNet(nn.Module):
         if "avg" in pool and "max" in pool:
             self.num_features = self.num_features * 2
 
+        self.bn = nn.BatchNorm1d(self.num_features)
         # Classification layer
         self.classifier = nn.Linear(self.num_features, self.num_classes)
         self.classifier.apply(weights_init_classifier)
+        self.has_ianet = False
 
     def forward(self, x):
         x = self.model.conv1(x)
@@ -87,6 +90,8 @@ class ResNet(nn.Module):
         x = self.model.maxpool(x)
         x = self.model.layer1(x)
         x = self.model.layer2(x)
+        if self.has_ianet:
+            x = self.ianet(x)
         x = self.model.layer3(x)
         x = self.model.layer4(x)
         x1, x2 = None, None
@@ -98,8 +103,9 @@ class ResNet(nn.Module):
         x = x1 if x2 is None else x2 if x1 is None else torch.cat((x1, x2), dim=1)
 
         x = x.view(x.size(0), -1)
-        if self.num_features > 0:
+        if self.has_embedding > 0:
             x = self.feat(x)
+        x = self.bn(x)
         x = self.classifier(x)
         return x
 

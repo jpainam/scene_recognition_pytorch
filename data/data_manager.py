@@ -17,7 +17,7 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder=
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        RandomErasing(probability=0.5, mean=[0.0, 0.0, 0.0]),
+        # RandomErasing(probability=0.5, mean=[0.0, 0.0, 0.0]),
     ])
 
     if ten_crops:

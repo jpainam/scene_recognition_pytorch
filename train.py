@@ -11,6 +11,7 @@ from data.data_manager import get_data
 import argparse
 import yaml
 from tensorboardX import SummaryWriter
+import  models
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
@@ -29,8 +30,11 @@ summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp)
 
 if __name__ == "__main__":
 
-    train_loader, val_loader, class_names = get_data(dataset=CONFIG['DATASET']['NAME'], root=CONFIG['DATASET']['ROOT'])
-    model = resnet50(pretrained=True, num_classes=len(class_names), num_features=512)
+    train_loader, val_loader, class_names = get_data(dataset=CONFIG['DATASET']['NAME'],
+                                                     root=CONFIG['DATASET']['ROOT'],
+                                                     ten_crops=CONFIG['TESTING']['TEN_CROPS'],
+                                                     batch_size=CONFIG['TRAINING']['BATCH_SIZE'])
+    model = models.create(num_features=CONFIG['MODEL']['NUM_FEATURES'], num_classes=len(class_names))
 
     ignored_params = list(map(id, model.classifier.parameters()))
     base_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
@@ -45,8 +49,10 @@ if __name__ == "__main__":
 
     if use_cuda:
         model = model.cuda()
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
 
-    epochs = 50
+    epochs = CONFIG['TRAINING']['EPOCH']
     dataloader = {"train": train_loader, "val": val_loader}
     for epoch in range(epochs):
         print("Epoch {}/{}".format(epoch, epochs - epoch))
@@ -70,11 +76,18 @@ if __name__ == "__main__":
                 if use_cuda:
                     images, labels = images.cuda(), labels.cuda()
 
+                if phase == "val" and CONFIG['TESTING']['TEN_CROPS']:
+                    bs, ncrops, c, h, w = images.size()
+                    images = images.view(-1, c, h, w)
+
                 if phase == "train":
                     outputs = model(images)
                 else:
                     with torch.no_grad():
                         outputs = model(images)
+
+                if phase == "val" and CONFIG['TESTING']['TEN_CROPS']:
+                    outputs = outputs.view(bs, ncrops, -1).mean(1)
 
                 loss = criterion(outputs, labels)
                 prec = accuracy(outputs.data, labels.data, topk=(1, 2, 5))
@@ -129,6 +142,9 @@ if __name__ == "__main__":
         scheduler.step()
         if (epoch + 1) % 10 == 0:
             checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'])
-            torch.save(model.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
+            try:
+                torch.save(model.module.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
+            except AttributeError:
+                torch.save(model.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
 
         print()
