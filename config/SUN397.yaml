@@ -1,6 +1,6 @@
 DATASET:
-  NAME: MITIndoor67
-  ROOT: /home/paul/datasets/MITIndoor67
+  NAME: SUN397
+  ROOT: /home/paul/datasets/SUN397
   TRAIN: train
   VAL: val
 

@@ -6,9 +6,12 @@ from PIL import Image
 import os.path as osp
 from torchvision.transforms.transforms import ToTensor, Lambda, Normalize
 from .datasets.ADE20KDataset import ADE20KDataset
+from .datasets.MITIndoor67Dataset import MITIndoor67Dataset
+from .datasets.SUN397Dataset import SUN397Dataset
 
 
-def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder='val', batch_size=64, ten_crops=False):
+def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder='train', batch_size=64, ten_crops=False,
+             with_attribute=False):
     assert root is not None
     train_transform = transforms.Compose([
         # transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0),
@@ -37,11 +40,14 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder=
         ])
 
     if dataset == "ADE20K":
-        train_set = ADE20KDataset(root, folder="training", transform=train_transform)
-        val_set = ADE20KDataset(root, folder="validation", transform=val_transform)
+        train_set = ADE20KDataset(root, folder="training", transform=train_transform, with_attribute=with_attribute)
+        val_set = ADE20KDataset(root, folder="validation", transform=val_transform, with_attribute=with_attribute)
     elif dataset == "MITIndoor67":
-        train_set = torchvision.datasets.ImageFolder(osp.join(root, train_folder), train_transform)
-        val_set = torchvision.datasets.ImageFolder(osp.join(root, val_folder), val_transform)
+        train_set = MITIndoor67Dataset(osp.join(root, train_folder), train_transform, with_attribute=with_attribute)
+        val_set = MITIndoor67Dataset(osp.join(root, val_folder), val_transform, with_attribute=with_attribute)
+    elif dataset == "SUN397":
+        train_set = SUN397Dataset(osp.join(root, train_folder), train_transform, with_attribute=with_attribute)
+        val_set = SUN397Dataset(osp.join(root, val_folder), val_transform, with_attribute=with_attribute)
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True,
                                                num_workers=4)
@@ -55,4 +61,4 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder=
     print(f'Validation set. Size {len(val_set.imgs)}')
     print('Train set number of scenes: {}'.format(len(train_set.classes)))
     print('Validation set number of scenes: {}'.format(len(val_set.classes)))
-    return train_loader, val_loader, train_set.classes
+    return train_loader, val_loader, train_set.classes, train_set.attributes

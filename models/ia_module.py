@@ -7,6 +7,8 @@ from torch.nn import functional as F
 import numpy as np
 import torchvision
 
+# https://github.com/blue-blue272/ImgReID-IAnet/blob/master/models/IA.py
+
 def generate_grid(h, w):
     x = np.linspace(0, w - 1, w)
     y = np.linspace(0, h - 1, h)

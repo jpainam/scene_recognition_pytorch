@@ -7,7 +7,7 @@ from torch import nn
 from torch.backends import cudnn
 
 class Evaluation(object):
-    def __init__(self, model, dataloader, classes, ten_crops):
+    def __init__(self, model, dataloader, classes, ten_crops, with_attribute=False):
         self.model = model
         self.model.eval()
         self.dataloader = dataloader
@@ -16,6 +16,7 @@ class Evaluation(object):
         cudnn.benchmark = self.use_cuda
         self.criterion = nn.CrossEntropyLoss()
         self.ten_crops = ten_crops
+        self.with_attribute = with_attribute
 
     def test(self, topk=(1,)):
         # Evaluate model on validation set
@@ -60,16 +61,17 @@ class Evaluation(object):
         data_time_start = time.time()
 
         with torch.no_grad():
-            for i, (images, labels) in enumerate(self.dataloader):
+            for i, (images, labels, _) in enumerate(self.dataloader):
                 start_time = time.time()
                 if self.use_cuda:
                     images, labels = images.cuda(), labels.cuda()
+                    # attributes = attributes.cuda() if self.with_attribute else None
 
                 if self.ten_crops:
                     bs, ncrops, c, h, w = images.size()
                     images = images.view(-1, c, h, w)
 
-                outputs = self.model(images)
+                outputs, feat, attrs = self.model(images)
                 if self.ten_crops:
                     outputs = outputs.view(bs, ncrops, -1).mean(1)
 

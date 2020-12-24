@@ -4,7 +4,7 @@ define the params in the configuration file located as config
 
 ### Training
 ```
-python train.py --config config/MITIndoor67.yaml
+python main.py --config config/MITIndoor67.yaml
 ```
 
 ### Testing

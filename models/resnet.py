@@ -35,7 +35,7 @@ class ResNet(nn.Module):
     }
 
     def __init__(self, depth, pretrained=True, num_features=0, dropout=0, norm=False,
-                 num_classes=0, pool="avg", stride=1):
+                 num_classes=0, pool="avg", stride=1, num_attrs=0):
         super(ResNet, self).__init__()
         assert num_classes != 0, 'The number of classes must be non null'
         self.depth = depth
@@ -81,7 +81,25 @@ class ResNet(nn.Module):
         # Classification layer
         self.classifier = nn.Linear(self.num_features, self.num_classes)
         self.classifier.apply(weights_init_classifier)
-        self.has_ianet = False
+
+        self.num_attrs = num_attrs
+        if self.num_attrs > 0:
+            self.attr_classifier = nn.Linear(self.num_features, self.num_attrs)
+            self.attr_classifier.apply(weights_init_classifier)
+
+
+    '''def _inflate_reslayer(self, reslayer, height=0, width=0,
+                          alpha_x=0, alpha_y=0, IA_idx=[], IA_channels=0):
+        reslayers = []
+        for i, layer2d in enumerate(reslayer):
+            reslayers.append(layer2d)
+
+            if i in IA_idx:
+                IA_block = IABlock2D(in_channels=IA_channels, height=height,
+                                     width=width, alpha_x=alpha_x, alpha_y=alpha_y)
+                reslayers.append(IA_block)
+
+        return nn.Sequential(*reslayers)'''
 
     def forward(self, x):
         x = self.model.conv1(x)
@@ -90,8 +108,6 @@ class ResNet(nn.Module):
         x = self.model.maxpool(x)
         x = self.model.layer1(x)
         x = self.model.layer2(x)
-        if self.has_ianet:
-            x = self.ianet(x)
         x = self.model.layer3(x)
         x = self.model.layer4(x)
         x1, x2 = None, None
@@ -102,12 +118,13 @@ class ResNet(nn.Module):
 
         x = x1 if x2 is None else x2 if x1 is None else torch.cat((x1, x2), dim=1)
 
-        x = x.view(x.size(0), -1)
-        if self.has_embedding > 0:
-            x = self.feat(x)
-        x = self.bn(x)
-        x = self.classifier(x)
-        return x
+        f = x.view(x.size(0), -1)
+        f = self.bn(f)
+        y = self.classifier(f)
+        attrs = None
+        if self.num_attrs > 0:
+            attrs = self.attr_classifier(f)
+        return y, attrs
 
 
 def resnet18(**kwargs):
@@ -131,8 +148,7 @@ def resnet152(**kwargs):
 
 
 if __name__ == "__main__":
-    b = torch.randn((5, 3, 224, 224))
-    b = b.cuda()
+    b = torch.randn((5, 3, 224, 224)).cuda()
     model = resnet50(pretrained=True, num_classes=751).cuda()
-    out = model(b)
+    out, feat = model(b)
     print(out.shape)

@@ -6,13 +6,12 @@ import random
 import torchvision.transforms.functional as TF
 import numpy as np
 import torch
-from imgaug import augmenters as iaa
-
+import pickle
 
 class ADE20KDataset(Dataset):
     """Class for ADE20K dataset."""
 
-    def __init__(self, root, folder, transform=None):
+    def __init__(self, root, folder, transform=None, with_attribute=False):
         """
         Initialize the dataset
         :param root_dir: Root directory to the dataset
@@ -47,6 +46,14 @@ class ADE20KDataset(Dataset):
         # Control Statements for data loading
         assert len(self.imgs) == len(self.labels) == len(self.labels_index)
         assert self.nclasses == 1055
+        self.with_attribute = with_attribute
+        if with_attribute:
+            data = pickle.load(open(os.path.join(root, 'annotations.pkl', 'rb')))
+            self.attribute_images = list(data['images'])
+            self.attributes = data['attributes']
+            # categories = data['categories']
+            self.attribute_labels = data['labels']
+            assert len(self.attribute_images) == len(self.imgs)
 
     def __len__(self):
         """
@@ -81,5 +88,7 @@ class ADE20KDataset(Dataset):
             img = self._transform(img)
 
         assert self.labels_index[idx] == self.classes.index(self.labels[idx])
-
-        return img, self.labels_index[idx]
+        attrs = None
+        if self.with_attribute:
+            attrs = self.attribute_labels[self.attribute_images.index(self.labels[idx])]
+        return img, self.labels_index[idx], attrs
