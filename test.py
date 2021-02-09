@@ -15,9 +15,9 @@ CONFIG = yaml.safe_load(open(args.config, 'r'))
 
 if __name__ == "__main__":
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
-                                                     root=CONFIG['DATASET']['ROOT'],
-                                                     batch_size=CONFIG['TESTING']['BATCH_SIZE'],
-                                                     ten_crops=CONFIG['TESTING']['TEN_CROPS'],
+                                                            root=CONFIG['DATASET']['ROOT'],
+                                                            batch_size=CONFIG['TESTING']['BATCH_SIZE'],
+                                                            ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                                                             with_attribute=CONFIG['TRAINING']['WITH_ATTRIBUTE'])
     model = models.get_model(CONFIG,
                              num_classes=len(class_names),
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     print(f"Checkpoint:  {checkpoint}!")
     print("Checkpoint loaded!! ")
     pretrained_dict = torch.load(checkpoint)
-    pretrained_dict = {key.replace("module.", ""): value for key, value in pretrained_dict.items()}
+    #pretrained_dict = {key.replace("module.", ""): value for key, value in pretrained_dict.items()}
     model.load_state_dict(pretrained_dict)
 
     if torch.cuda.is_available():
@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     model.eval()
 
-    evaluate = Evaluation(model=model,  dataloader=val_loader, classes=class_names,
+    evaluate = Evaluation(model=model, dataloader=val_loader, classes=class_names,
                           ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                           with_attribute=CONFIG['TRAINING']['WITH_ATTRIBUTE'])
     evaluate.test(topk=(1, 2, 5))

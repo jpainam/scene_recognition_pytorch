@@ -47,7 +47,7 @@ class SUN397Dataset(Dataset):
 
             attrs = attrs['labels_cv']
             attrs = np.where(attrs > 0, 1, 0)
-            self.attributes = attrs.astype(np.long)
+            self.attributes = attrs.astype(np.float32)
 
             if self.train_val == 'train':
                 assert len(images) == NUM_TRAIN_IMAGES

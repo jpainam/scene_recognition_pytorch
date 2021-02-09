@@ -19,7 +19,7 @@ class MITIndoor67Dataset(torchvision.datasets.ImageFolder):
 
     def __getitem__(self, idx):
         images, labels = super(MITIndoor67Dataset, self).__getitem__(idx)
-        attrs = None
+        attrs = []
         img_path, class_index = self.imgs[idx]
         if self.with_attribute:
             attrs = self.attribute_labels[self.attribute_images.index(os.path.basename(img_path))]

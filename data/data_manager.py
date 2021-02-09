@@ -61,4 +61,4 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder=
     print(f'Validation set. Size {len(val_set.imgs)}')
     print('Train set number of scenes: {}'.format(len(train_set.classes)))
     print('Validation set number of scenes: {}'.format(len(val_set.classes)))
-    return train_loader, val_loader, train_set.classes, train_set.attributes
+    return train_loader, val_loader, train_set.classes, train_set.attributes if with_attribute else []

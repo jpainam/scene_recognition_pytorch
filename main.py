@@ -18,7 +18,6 @@ import numpy as np
 from evaluation.classification import get_attribute_results
 from utils import time_str
 
-
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
@@ -38,13 +37,13 @@ with_attribute = CONFIG['TRAINING']['WITH_ATTRIBUTE']
 if __name__ == "__main__":
 
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
-                                                     root=CONFIG['DATASET']['ROOT'],
-                                                     ten_crops=CONFIG['TESTING']['TEN_CROPS'],
-                                                     batch_size=CONFIG['TRAINING']['BATCH_SIZE'],
-                                                     with_attribute=CONFIG['TRAINING']['WITH_ATTRIBUTE'])
+                                                            root=CONFIG['DATASET']['ROOT'],
+                                                            ten_crops=CONFIG['TESTING']['TEN_CROPS'],
+                                                            batch_size=CONFIG['TRAINING']['BATCH_SIZE'],
+                                                            with_attribute=CONFIG['TRAINING']['WITH_ATTRIBUTE'])
     model = models.get_model(CONFIG,
                              num_classes=len(class_names),
-                             num_attrs=len(attrs),
+                             num_attrs=len(attrs) if with_attribute else 0,
                              dropout=0.5)
 
     ignored_params = list(map(id, model.classifier.parameters()))
@@ -56,9 +55,11 @@ if __name__ == "__main__":
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
     use_cuda = torch.cuda.is_available()
-    #criterion = [nn.CrossEntropyLoss(), nn.MultiLabelSoftMarginLoss()]
+    # criterion = [nn.CrossEntropyLoss(), nn.MultiLabelSoftMarginLoss()]
     # criterion = CEL_Sigmoid(attrs.mean(0))
-    criterion = nn.MultiLabelMarginLoss()
+    # criterion = nn.MultiLabelMarginLoss()
+    # criterion = nn.BCEWithLogitsLoss()
+    criterion = nn.CrossEntropyLoss()
 
     if use_cuda:
         model = model.cuda()
@@ -66,7 +67,7 @@ if __name__ == "__main__":
         model = nn.DataParallel(model)
 
     trainer = AttributeTrainer(model=model, train_loader=train_loader, val_loader=val_loader,
-                               criterion=criterion, optimizer=optimizer, config=CONFIG)
+                               summary_writer=summary_writer, criterion=criterion, optimizer=optimizer, config=CONFIG)
 
     epochs = CONFIG['TRAINING']['EPOCH']
     dataloader = {"train": train_loader, "val": val_loader}
@@ -87,4 +88,3 @@ if __name__ == "__main__":
 
         print(f'{time_str()}')
         print('-' * 60)
-

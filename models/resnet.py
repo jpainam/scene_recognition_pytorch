@@ -124,7 +124,7 @@ class ResNet(nn.Module):
         attrs = None
         if self.num_attrs > 0:
             attrs = self.attr_classifier(f)
-        return y, attrs
+        return y, attrs, f
 
 
 def resnet18(**kwargs):

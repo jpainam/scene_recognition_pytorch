@@ -1,5 +1,6 @@
 import time
 from utils.meters import AverageMeter
+from evaluation.classification import accuracy
 import torch
 import numpy as np
 from tqdm import tqdm
@@ -7,13 +8,14 @@ from utils import time_str
 
 
 class BaseTrainer:
-    def __init__(self, model, train_loader, criterion, optimizer, config, val_loader):
+    def __init__(self, model, train_loader, criterion, optimizer, config, summary_writer, val_loader):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = train_loader
         self.criterion = criterion
         self.optimizer = optimizer
         self.config = config
+        self.summary_writer = summary_writer
 
     def train(self, epoch):
         raise NotImplementedError
@@ -25,7 +27,6 @@ class BaseTrainer:
 class ClassificationTrainer(BaseTrainer):
     def __init__(self):
         super(ClassificationTrainer, self).__init__()
-
 
     '''def batch_trainer(self, epoch):
         print("Epoch {}/{}".format(epoch + 1, epochs))
@@ -136,38 +137,84 @@ class AttributeTrainer(BaseTrainer):
         gt_list = []
         preds_probs = []
         loss_meter = AverageMeter()
+        correct = AverageMeter()
+        data_time = AverageMeter()
+        losses = AverageMeter()
+        prec1 = AverageMeter()
+        prec2 = AverageMeter()
+        prec5 = AverageMeter()
+
         lr = self.optimizer.param_groups[1]['lr']
 
-        for step, (imgs, gt_label) in enumerate(self.train_loader):
+        for step, (imgs, labels, attrs) in enumerate(self.train_loader):
             batch_time = time.time()
-            imgs, gt_label = imgs.cuda(), gt_label.cuda()
-            #gt_label[gt_label != 0] = 1.
-            #gt_label = gt_label.type(torch.cuda.LongTensor)
+            imgs, labels = imgs.cuda(), labels.cuda()
 
-            logits_attrs, _ = self.model(imgs)
-            loss = self.criterion(logits_attrs, gt_label)
+            outputs, feat_attrs, features = self.model(imgs)
+            loss = self.criterion(outputs, labels)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            gt_list.append(labels.detach().cpu().numpy())
+            prec = accuracy(outputs.data, labels.data, topk=(1, 2, 5))
 
-            loss_meter.update(loss.item())
-            gt_list.append(gt_label.detach().cpu().numpy())
-            train_probs = torch.sigmoid(logits_attrs)
-            preds_probs.append(train_probs.detach().cpu().numpy())
+            losses.update(loss.item(), labels.size(0))
+            prec1.update(prec[0].item(), labels.size(0))
+            prec2.update(prec[1].item(), labels.size(0))
+            prec5.update(prec[2].item(), labels.size(0))
+            #train_probs = torch.sigmoid(logits_attrs)
+            #preds_probs.append(train_probs.detach().cpu().numpy())
+            _, predictions = torch.max(outputs.data, 1)
+            correct.update((predictions == labels).sum().item(), labels.size(0))
 
-            log_interval = 20
-            if (step + 1) % log_interval == 0 or (step + 1) % len(self.train_loader) == 0:
-                print(f'{time_str()}, Step {step}/{batch_num} in Ep {epoch}, {time.time() - batch_time:.2f}s ',
-                      f'train_loss:{loss_meter.val:.4f}')
+            # tensorboard
+            if self.summary_writer is not None:
+                global_step = epoch * len(self.train_loader) + step
+                self.summary_writer.add_scalar('train_loss', loss.item(), global_step)
+                self.summary_writer.add_scalar('train_acc', 1. * correct.avg, global_step)
+                self.summary_writer.add_scalar('prec1', prec1.avg, global_step)
+                self.summary_writer.add_scalar('prec2', prec2.avg, global_step)
+                self.summary_writer.add_scalar('prec5', prec5.avg, global_step)
 
-        train_loss = loss_meter.avg
-        gt_label = np.concatenate(gt_list, axis=0)
-        preds_probs = np.concatenate(preds_probs, axis=0)
 
-        print(f'Epoch {epoch} LR {lr}, Time train {time.time() - epoch_time:.2f}s, Loss: {loss_meter.avg:.4f}')
+            #log_interval = 20
+            #if (step + 1) % log_interval == 0 or (step + 1) % len(self.train_loader) == 0:
+            #    print(f'{time_str()}, Step {step}/{batch_num} in Ep {epoch}, {time.time() - batch_time:.2f}s ',
+            #          f'Loss:{loss_meter.val:.4f}')
+            if (step + 1) % 10 == 0:
+                print('Epoch: [{}][{}]\t'
+                      'Loss {:.3f} ({:.3f})\t'
+                      'Acc {:.3f} ({:.3f})\t'
+                      'Prec1 {:.2%} ({:.2%})\t'
+                      'Prec2 {:.2%} ({:.2%})\t'
+                      'Prec5 {:.2%} ({:.2%})\t'
+                      .format(epoch, step + 1,
+                              losses.val, losses.avg,
+                              correct.val, correct.avg,
+                              prec1.val, prec2.avg,
+                              prec2.val, prec2.avg,
+                              prec5.val, prec5.avg))
+
+        #train_loss = loss_meter.avg
+        #gt_label = np.concatenate(gt_list, axis=0)
+        #preds_probs = np.concatenate(preds_probs, axis=0)
+
+        #print(f'Epoch {epoch} LR {lr}, Time train {time.time() - epoch_time:.2f}s, Loss: {loss_meter.avg:.4f}')
+
+        print('Epoch: [{}][{}]\t'
+              'Loss {:.3f} ({:.3f})\t'
+              'Prec1 {:.2%} ({:.2%})\t'
+              'Prec2 {:.2%} ({:.2%})\t'
+              'Prec5 {:.2%} ({:.2%})\t'
+              .format(epoch, step + 1,
+                      # batch_time.val, batch_time.avg,
+                      # data_time.val, data_time.avg,
+                      losses.val, losses.avg,
+                      prec1.val, prec1.avg,
+                      prec2.val, prec2.avg,
+                      prec5.val, prec5.avg))
 
         return train_loss, gt_label, preds_probs
-
 
     def eval(self, epoch):
         self.model.eval()
@@ -176,11 +223,10 @@ class AttributeTrainer(BaseTrainer):
         preds_probs = []
         gt_list = []
         with torch.no_grad():
-            for step, (imgs, gt_label) in enumerate(tqdm(self.val_loader)):
+            for step, (imgs, gt_label) in enumerate(self.val_loader):
                 imgs = imgs.cuda()
                 gt_label = gt_label.cuda()
                 gt_list.append(gt_label.cpu().numpy())
-                gt_label[gt_label == -1] = 0
                 valid_logits, _ = self.model(imgs)
                 valid_loss = self.criterion(valid_logits, gt_label)
                 valid_probs = torch.sigmoid(valid_logits)

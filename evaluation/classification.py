@@ -1,8 +1,16 @@
 from __future__ import absolute_import
-from . import to_torch
+
 import torch
 from easydict import EasyDict
 import numpy as np
+
+def to_torch(ndarray):
+    if type(ndarray).__module__ == 'numpy':
+        return torch.from_numpy(ndarray)
+    elif not torch.is_tensor(ndarray):
+        raise ValueError("Cannot convert {} to torch tensor"
+                         .format(type(ndarray)))
+    return ndarray
 
 
 def accuracy(output, target, topk=(1,)):

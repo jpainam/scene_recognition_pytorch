@@ -71,7 +71,7 @@ class Evaluation(object):
                     bs, ncrops, c, h, w = images.size()
                     images = images.view(-1, c, h, w)
 
-                outputs, feat, attrs = self.model(images)
+                outputs, attrs, features = self.model(images)
                 if self.ten_crops:
                     outputs = outputs.view(bs, ncrops, -1).mean(1)
 

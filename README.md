@@ -1,6 +1,6 @@
 ### Configuration
 
-define the params in the configuration file located as config
+Define the params in the configuration file located in the `config` folder
 
 ### Training
 ```
@@ -37,3 +37,5 @@ Evaluation statistics:
 Validation results: Loss 0.018, Prec@1 0.998, Prec@2 1.000, Prec@5 1.000, Mean Class Accuracy 119.113
 
 ```
+
+ Open this for attribute/multi-class classification https://github.com/ycao5602/SAL
