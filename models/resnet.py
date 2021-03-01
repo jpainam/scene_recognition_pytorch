@@ -6,24 +6,7 @@ from torch.nn import init
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
 
-
-def weights_init_kaiming(m):
-    classname = m.__class__.__name__
-    if classname.find('Conv') != -1:
-        init.kaiming_normal_(m.weight.data, a=0, mode='fan_in') # For old pytorch, you may use kaiming_normal.
-    elif classname.find('Linear') != -1:
-        init.kaiming_normal_(m.weight.data, a=0, mode='fan_out')
-        init.constant_(m.bias.data, 0.0)
-    elif classname.find('BatchNorm1d') != -1:
-        init.normal_(m.weight.data, 1.0, 0.02)
-        init.constant_(m.bias.data, 0.0)
-
-
-def weights_init_classifier(m):
-    classname = m.__class__.__name__
-    if classname.find('Linear') != -1:
-        init.normal_(m.weight.data, std=0.001)
-        init.constant_(m.bias.data, 0.0)
+from models.block_model import ClassBlock
 
 
 class ResNet(nn.Module):
@@ -34,59 +17,36 @@ class ResNet(nn.Module):
         101: torchvision.models.resnet101,
     }
 
-    def __init__(self, depth, pretrained=True, num_features=0, dropout=0, norm=False,
+    def __init__(self, depth, pretrained=True, num_features=2048, dropout=0,
+                 norm=False, with_attribute=False,
                  num_classes=0, pool="avg", stride=1, num_attrs=0):
         super(ResNet, self).__init__()
         assert num_classes != 0, 'The number of classes must be non null'
         self.depth = depth
         self.pretrained = pretrained
         self.num_features = num_features
-        self.has_embedding = num_features > 0
         self.norm = norm
+        self.num_attrs = num_attrs
         self.num_classes = num_classes
+        self.with_attribute = with_attribute
 
         if depth not in ResNet.__factory:
             raise KeyError(f"Unsupported resnet depth {depth} module, must be [18, 34, 50, 101]")
-        self.model = ResNet.__factory[depth](pretrained=pretrained)
+        model_ft = ResNet.__factory[depth](pretrained=pretrained)
         if stride == 1:
-            self.model.layer4[0].downsample[0].stride = (1, 1)
-            self.model.layer4[0].conv2.stride = (1, 1)
+            model_ft.layer4[0].downsample[0].stride = (1, 1)
+            model_ft.layer4[0].conv2.stride = (1, 1)
+        model_ft.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        model_ft.fc = nn.Sequential()
 
-        self.dropout = dropout
-        out_planes = self.model.fc.in_features
-        # Append a bottleneck layer
-        if self.num_features > 0:
-            self.feat = nn.Sequential(
-                nn.Linear(out_planes, self.num_features),
-                nn.BatchNorm1d(self.num_features),
-            )
-            self.feat.apply(weights_init_classifier)
-            self.feat.apply(weights_init_kaiming)
-        else:
-            self.num_features = out_planes
+        self.features = model_ft
+        self.classifier = ClassBlock(input_dim=self.num_features, class_num=num_classes, activ='none')
 
-        if dropout > 0:
-            self.drop = nn.Dropout(self.dropout)
-
-        self.pool = pool
-        if "avg" in pool:
-            self.model.avgpool2 = nn.AdaptiveAvgPool2d((1, 1))
-        if "max" in pool:
-            self.model.maxpool2 = nn.AdaptiveMaxPool2d((1, 1))
-
-        if "avg" in pool and "max" in pool:
-            self.num_features = self.num_features * 2
-
-        self.bn = nn.BatchNorm1d(self.num_features)
-        # Classification layer
-        self.classifier = nn.Linear(self.num_features, self.num_classes)
-        self.classifier.apply(weights_init_classifier)
-
-        self.num_attrs = num_attrs
-        if self.num_attrs > 0:
-            self.attr_classifier = nn.Linear(self.num_features, self.num_attrs)
-            self.attr_classifier.apply(weights_init_classifier)
-
+        assert self.num_features == 2048
+        if self.with_attribute:
+            for a in range(self.num_attrs):
+                self.__setattr__("attr_%d" % a, ClassBlock(input_dim=self.num_features,
+                                                           class_num=1, activ='sigmoid'))
 
     '''def _inflate_reslayer(self, reslayer, height=0, width=0,
                           alpha_x=0, alpha_y=0, IA_idx=[], IA_channels=0):
@@ -102,29 +62,18 @@ class ResNet(nn.Module):
         return nn.Sequential(*reslayers)'''
 
     def forward(self, x):
-        x = self.model.conv1(x)
-        x = self.model.bn1(x)
-        x = self.model.relu(x)
-        x = self.model.maxpool(x)
-        x = self.model.layer1(x)
-        x = self.model.layer2(x)
-        x = self.model.layer3(x)
-        x = self.model.layer4(x)
-        x1, x2 = None, None
-        if "avg" in self.pool:
-            x1 = self.model.avgpool2(x)
-        if "max" in self.pool:
-            x2 = self.model.maxpool2(x)
-
-        x = x1 if x2 is None else x2 if x1 is None else torch.cat((x1, x2), dim=1)
-
-        f = x.view(x.size(0), -1)
-        f = self.bn(f)
-        y = self.classifier(f)
-        attrs = None
-        if self.num_attrs > 0:
-            attrs = self.attr_classifier(f)
-        return y, attrs, f
+        # [B x C x W x H]
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        # [B x 2048]
+        if self.with_attribute:
+            pred_attrs = [self.__getattr__("attr_%d" % a)(x) for a in range(self.num_attrs)]
+            pred_attrs = torch.cat(pred_attrs, dim=1)
+        # [B x num_attrs]
+        pred_id = self.classifier(x)
+        if self.with_attribute:
+            return pred_id, pred_attrs
+        return pred_id
 
 
 def resnet18(**kwargs):

@@ -4,11 +4,12 @@ import torchvision
 
 
 class MITIndoor67Dataset(torchvision.datasets.ImageFolder):
-    def __init__(self, root: str, transform, with_attribute=False):
+    def __init__(self, root: str, transform, with_attribute=False, xi=.8):
         super().__init__(root, transform)
         self.with_attribute = with_attribute
         self.train_val = 'val' if 'val' in root else 'train'
 
+        self.xi = xi
         if with_attribute:
             data = pickle.load(open(os.path.join('/home/paul/datasets/MITIndoor67', f'{self.train_val}_annotations.pkl'), 'rb'))
             self.attribute_images = list(data['images'])
@@ -23,5 +24,7 @@ class MITIndoor67Dataset(torchvision.datasets.ImageFolder):
         img_path, class_index = self.imgs[idx]
         if self.with_attribute:
             attrs = self.attribute_labels[self.attribute_images.index(os.path.basename(img_path))]
+            attrs[attrs > self.xi] = 1.
+            attrs[attrs <= self.xi] = 0.
 
         return images, labels, attrs

@@ -5,7 +5,6 @@ import math
 from torch import nn
 from torch.nn import functional as F
 import numpy as np
-import torchvision
 
 # https://github.com/blue-blue272/ImgReID-IAnet/blob/master/models/IA.py
 
@@ -28,8 +27,6 @@ def generate_gaussian(height, width, alpha_x, alpha_y):
     Dis = torch.from_numpy(Dis).float()
     Dis = F.softmax(Dis, dim=-1)
     return Dis
-
-
 
 
 class _IABlockND(nn.Module):

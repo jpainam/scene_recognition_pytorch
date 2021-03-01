@@ -3,6 +3,8 @@ from __future__ import absolute_import
 import torch
 from easydict import EasyDict
 import numpy as np
+from sklearn.metrics import precision_score
+
 
 def to_torch(ndarray):
     if type(ndarray).__module__ == 'numpy':
@@ -13,22 +15,61 @@ def to_torch(ndarray):
     return ndarray
 
 
-def accuracy(output, target, topk=(1,)):
+def precision(outputs, labels):
+    op = outputs.cpu()
+    la = labels.cpu()
+    _, preds = torch.max(op, dim=1)
+    return torch.tensor(precision_score(la, preds, average='weighted'))
+
+
+def accuracy(output, target, topk=(1,), is_multilabel=False):
     output, target = to_torch(output), to_torch(target)
     maxk = max(topk)
     batch_size = target.size(0)
 
     _, pred = output.topk(maxk, dim=1, largest=True, sorted=True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
+    if not is_multilabel:
+        pred = pred.t()
+        correct = pred.eq(target.view(1, -1).expand_as(pred))
 
     ret = []
     for k in topk:
-        correct_k = correct[:k].contiguous().view(-1).float().sum(dim=0, keepdim=True)
-        ret.append(correct_k.mul_(1. / batch_size))
+        if not is_multilabel:
+            correct_k = correct[:k].contiguous().view(-1).float().sum(dim=0, keepdim=True)
+            ret.append(correct_k.mul_(1. / batch_size))
+        else:
+            correct = (target * torch.zeros_like(target).scatter(1, pred[:, :k], 1)).float()
+            ret.append(correct.sum() / target.sum())
+
     return ret
 
 
+def accuracy2(output, target, topk=(1,)):
+    maxk = max(topk)
+    batch_size = target.size(0)
+
+    _, pred = output.topk(maxk, dim=1, largest=True, sorted=True)
+    print(pred.shape)
+    ret = []
+    for k in topk:
+        correct = (target * torch.zeros_like(target).scatter(1, pred[:, :k], 1)).float()
+        ret.append(correct.sum() / target.sum())
+    return ret
+
+'''
+
+def accuracy(output, target, topk=(1,)):
+    from ignite.metrics import Accuracy, Precision, Recall
+    acc = Accuracy(is_multilabel=True)
+    acc.reset()
+    for y_pred, y in zip(output, target):
+        acc.update((y_pred, y))
+
+    precision = Precision(average=False, is_multilabel=True)
+    recall = Recall(average=False, is_multilabel=True)
+    return acc.compute()
+
+'''
 def accuracy_multilabel(output, attrs):
     # computes the total accuracy for nn.nn.MultiLabelSoftMarginLoss
 
@@ -44,12 +85,50 @@ def accuracy_multilabel(output, attrs):
 # computes the total accuracy for nn.nn.MultiLabelSoftMarginLoss
 def accuracy_multilabel2(outputs, labels):
     N, C = outputs.size()
-    outputs = torch.sigmoid(outputs)  # torch.Size([N, C]) e.g. tensor([[0., 0.5, 0.]])
-    outputs[outputs >= 0.5] = 1
-    acc = (outputs == labels).sum() / (N * C) * 100
+    #outputs = torch.sigmoid(outputs)  # torch.Size([N, C]) e.g. tensor([[0., 0.5, 0.]])
+    #outputs[outputs >= 0.5] = 1.
+    #outputs[outputs < 0.5] = 0.
+    preds = torch.gt(outputs, torch.ones_like(outputs) / 2.)
+    acc = (preds.bool() == labels.bool()).sum() / (N * C) * 100
     return acc
+'''
+class LabelwiseAccuracy(Accuracy):
+    def __init__(self, output_transform=lambda x: x):
+        self._num_correct = None
+        self._num_examples = None
+        super(LabelwiseAccuracy, self).__init__(output_transform=output_transform)
 
+    def reset(self):
+        self._num_correct = None
+        self._num_examples = 0
+        super(LabelwiseAccuracy, self).reset()
 
+    def update(self, output):
+
+        #y_pred, y = self._check_shape(output)
+        self._check_shape(output)
+        y_pred, y = output
+        self._check_type((y_pred, y))
+
+        num_classes = y_pred.size(1)
+        last_dim = y_pred.ndimension()
+        y_pred = torch.transpose(y_pred, 1, last_dim - 1).reshape(-1, num_classes)
+        y = torch.transpose(y, 1, last_dim - 1).reshape(-1, num_classes)
+        correct_exact = torch.all(y == y_pred.type_as(y), dim=-1)  # Sample-wise
+        correct_elementwise = torch.sum(y == y_pred.type_as(y), dim=0)
+
+        if self._num_correct is not None:
+            self._num_correct = torch.add(self._num_correct,
+                                                    correct_elementwise)
+        else:
+            self._num_correct = correct_elementwise
+        self._num_examples += correct_exact.shape[0]
+
+    def compute(self):
+        if self._num_examples == 0:
+            raise NotComputableError('Accuracy must have at least one example before it can be computed.')
+        return self._num_correct.type(torch.float) / self._num_examples
+'''
 def get_attribute_results(gt_label, preds_probs, thresold=0.5):
     pred_label = preds_probs > thresold
     eps = 1e-20

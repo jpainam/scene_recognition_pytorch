@@ -1,22 +1,16 @@
 import torch
-from models.resnet import *
 from torch import nn
 import sys
 import os.path as osp
 from utils.loggers import Logger, mkdir_if_missing
 import time
-from evaluation.classification import accuracy, accuracy_multilabel2, accuracy_multilabel
-from utils.meters import AverageMeter
 from data.data_manager import get_data
 import argparse
 import yaml
 from tensorboardX import SummaryWriter
 import models
 from trainer import AttributeTrainer
-from loss.attribute_loss import CEL_Sigmoid
-import numpy as np
-from evaluation.classification import get_attribute_results
-from utils import time_str
+
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
@@ -46,20 +40,20 @@ if __name__ == "__main__":
                              num_attrs=len(attrs) if with_attribute else 0,
                              dropout=0.5)
 
-    ignored_params = list(map(id, model.classifier.parameters()))
-    base_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
+    ignored_params = list(map(id, model.features.parameters()))
+    classifier_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
 
-    optimizer = torch.optim.SGD([{"params": base_params, "lr": 0.001},
-                                 {"params": model.classifier.parameters(), "lr": 0.01}],
+    optimizer = torch.optim.SGD([{"params": model.features.parameters(), "lr": 0.01},
+                                 {"params": classifier_params, "lr": 0.1}],
                                 momentum=0.9, weight_decay=5e-4, nesterov=True)
 
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
     use_cuda = torch.cuda.is_available()
-    # criterion = [nn.CrossEntropyLoss(), nn.MultiLabelSoftMarginLoss()]
-    # criterion = CEL_Sigmoid(attrs.mean(0))
-    # criterion = nn.MultiLabelMarginLoss()
-    # criterion = nn.BCEWithLogitsLoss()
-    criterion = nn.CrossEntropyLoss()
+
+    if with_attribute:
+        criterion = [nn.CrossEntropyLoss(), nn.BCELoss()]
+    else:
+        criterion = nn.CrossEntropyLoss()
 
     if use_cuda:
         model = model.cuda()
@@ -67,24 +61,26 @@ if __name__ == "__main__":
         model = nn.DataParallel(model)
 
     trainer = AttributeTrainer(model=model, train_loader=train_loader, val_loader=val_loader,
-                               summary_writer=summary_writer, criterion=criterion, optimizer=optimizer, config=CONFIG)
+                               with_attribute=with_attribute,
+                               summary_writer=summary_writer,
+                               criterion=criterion, optimizer=optimizer, config=CONFIG)
 
     epochs = CONFIG['TRAINING']['EPOCH']
     dataloader = {"train": train_loader, "val": val_loader}
     for epoch in range(epochs):
-        train_loss, train_gt, train_probs = trainer.train(epoch)
-
-        valid_loss, valid_gt, valid_probs = trainer.eval(epoch)
-        train_result = get_attribute_results(train_gt, train_probs)
-
-        valid_result = get_attribute_results(valid_gt, valid_probs)
-
-        print(f'Evaluation on test set, \n',
-              'ma: {:.4f},  pos_recall: {:.4f} , neg_recall: {:.4f} \n'.format(
-                  valid_result.ma, np.mean(valid_result.label_pos_recall), np.mean(valid_result.label_neg_recall)),
-              'Acc: {:.4f}, Prec: {:.4f}, Rec: {:.4f}, F1: {:.4f}'.format(
-                  valid_result.instance_acc, valid_result.instance_prec, valid_result.instance_recall,
-                  valid_result.instance_f1))
-
-        print(f'{time_str()}')
+        epoch_time = time.time()
+        trainer.train(epoch)
+        scheduler.step()
+        print("LR1/LR2: [{}/{}], Train Time: {:.2f}".format(
+            optimizer.param_groups[0]['lr'],
+            optimizer.param_groups[1]['lr'],
+            time.time() - epoch_time
+        ))
+        trainer.eval(epoch)
+        if (epoch + 1) % 10 == 0:
+            checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'])
+            try:
+                torch.save(model.module.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
+            except AttributeError:
+                torch.save(model.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
         print('-' * 60)

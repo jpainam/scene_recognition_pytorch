@@ -6,6 +6,7 @@ import numpy as np
 import pickle
 import os
 
+
 def get_correlation(annotations):
     train_data = pickle.load(open(os.path.join("data/annotations/", annotations), 'rb'))
 

@@ -1,14 +1,17 @@
 import time
 from utils.meters import AverageMeter
-from evaluation.classification import accuracy
+from evaluation.classification import accuracy, accuracy_multilabel2, precision
 import torch
 import numpy as np
 from tqdm import tqdm
 from utils import time_str
-
+from sklearn.metrics import precision_score
 
 class BaseTrainer:
-    def __init__(self, model, train_loader, criterion, optimizer, config, summary_writer, val_loader):
+    def __init__(self, model, train_loader, criterion, optimizer, config,
+                 summary_writer,
+                 val_loader,
+                 with_attribute=False):
         self.model = model
         self.train_loader = train_loader
         self.val_loader = train_loader
@@ -16,6 +19,7 @@ class BaseTrainer:
         self.optimizer = optimizer
         self.config = config
         self.summary_writer = summary_writer
+        self.with_attribute = with_attribute
 
     def train(self, epoch):
         raise NotImplementedError
@@ -132,40 +136,45 @@ class ClassificationTrainer(BaseTrainer):
 class AttributeTrainer(BaseTrainer):
     def train(self, epoch):
         self.model.train()
-        epoch_time = time.time()
-        batch_num = len(self.train_loader)
-        gt_list = []
-        preds_probs = []
-        loss_meter = AverageMeter()
         correct = AverageMeter()
-        data_time = AverageMeter()
         losses = AverageMeter()
         prec1 = AverageMeter()
         prec2 = AverageMeter()
         prec5 = AverageMeter()
 
-        lr = self.optimizer.param_groups[1]['lr']
-
         for step, (imgs, labels, attrs) in enumerate(self.train_loader):
-            batch_time = time.time()
-            imgs, labels = imgs.cuda(), labels.cuda()
 
-            outputs, feat_attrs, features = self.model(imgs)
-            loss = self.criterion(outputs, labels)
+            imgs, labels = imgs.cuda(), labels.cuda()
             self.optimizer.zero_grad()
+            if self.with_attribute:
+                attrs = attrs.cuda(),
+                attrs = attrs.float()
+                pred_id, pred_attrs = self.model(imgs)
+                assert pred_attrs.shape[-1] == 134
+            else:
+                pred_id = self.model(imgs)
+            assert pred_id.shape[-1] == self.config['DATASET']['NUM_CATEGORY']
+
+            if self.with_attribute:
+                loss_id = self.criterion[0](pred_id, labels)
+                loss_attrs = self.criterion[1](pred_attrs, attrs)
+                loss = loss_id + loss_attrs
+            else:
+                loss = self.criterion(pred_id, labels)
+
             loss.backward()
             self.optimizer.step()
-            gt_list.append(labels.detach().cpu().numpy())
-            prec = accuracy(outputs.data, labels.data, topk=(1, 2, 5))
+            prec = accuracy(pred_id.data, labels.data, topk=(1, 2, 5))
 
             losses.update(loss.item(), labels.size(0))
             prec1.update(prec[0].item(), labels.size(0))
             prec2.update(prec[1].item(), labels.size(0))
             prec5.update(prec[2].item(), labels.size(0))
-            #train_probs = torch.sigmoid(logits_attrs)
-            #preds_probs.append(train_probs.detach().cpu().numpy())
-            _, predictions = torch.max(outputs.data, 1)
-            correct.update((predictions == labels).sum().item(), labels.size(0))
+            _, predicted = torch.max(pred_id.data, dim=1)
+            acc = (predicted == labels).sum().item()
+            #number_of_correct = torch.sum(preds == attrs.bool()).item()
+            #total_correct = attrs.size(0) * attrs.size(1)
+            correct.update(acc, labels.size(0))
 
             # tensorboard
             if self.summary_writer is not None:
@@ -176,65 +185,68 @@ class AttributeTrainer(BaseTrainer):
                 self.summary_writer.add_scalar('prec2', prec2.avg, global_step)
                 self.summary_writer.add_scalar('prec5', prec5.avg, global_step)
 
-
-            #log_interval = 20
-            #if (step + 1) % log_interval == 0 or (step + 1) % len(self.train_loader) == 0:
-            #    print(f'{time_str()}, Step {step}/{batch_num} in Ep {epoch}, {time.time() - batch_time:.2f}s ',
-            #          f'Loss:{loss_meter.val:.4f}')
             if (step + 1) % 10 == 0:
-                print('Epoch: [{}][{}]\t'
+                print('Train: [{}] '
                       'Loss {:.3f} ({:.3f})\t'
-                      'Acc {:.3f} ({:.3f})\t'
+                      'Acc {:.2f} ({:.2f})\t'
                       'Prec1 {:.2%} ({:.2%})\t'
                       'Prec2 {:.2%} ({:.2%})\t'
                       'Prec5 {:.2%} ({:.2%})\t'
-                      .format(epoch, step + 1,
+                      .format(step + 1,
                               losses.val, losses.avg,
                               correct.val, correct.avg,
                               prec1.val, prec2.avg,
                               prec2.val, prec2.avg,
-                              prec5.val, prec5.avg))
+                              prec5.val, prec5.avg
+                              ))
 
-        #train_loss = loss_meter.avg
-        #gt_label = np.concatenate(gt_list, axis=0)
-        #preds_probs = np.concatenate(preds_probs, axis=0)
-
-        #print(f'Epoch {epoch} LR {lr}, Time train {time.time() - epoch_time:.2f}s, Loss: {loss_meter.avg:.4f}')
-
-        print('Epoch: [{}][{}]\t'
-              'Loss {:.3f} ({:.3f})\t'
-              'Prec1 {:.2%} ({:.2%})\t'
-              'Prec2 {:.2%} ({:.2%})\t'
-              'Prec5 {:.2%} ({:.2%})\t'
-              .format(epoch, step + 1,
-                      # batch_time.val, batch_time.avg,
-                      # data_time.val, data_time.avg,
-                      losses.val, losses.avg,
-                      prec1.val, prec1.avg,
-                      prec2.val, prec2.avg,
-                      prec5.val, prec5.avg))
-
-        return train_loss, gt_label, preds_probs
+        return correct.avg, losses.avg
 
     def eval(self, epoch):
         self.model.eval()
-        loss_meter = AverageMeter()
-
-        preds_probs = []
-        gt_list = []
+        losses = AverageMeter()
+        correct = AverageMeter()
+        prec1 = AverageMeter()
+        prec2 = AverageMeter()
+        prec5 = AverageMeter()
         with torch.no_grad():
-            for step, (imgs, gt_label) in enumerate(self.val_loader):
-                imgs = imgs.cuda()
-                gt_label = gt_label.cuda()
-                gt_list.append(gt_label.cpu().numpy())
-                valid_logits, _ = self.model(imgs)
-                valid_loss = self.criterion(valid_logits, gt_label)
-                valid_probs = torch.sigmoid(valid_logits)
-                preds_probs.append(valid_probs.cpu().numpy())
-                loss_meter.update(valid_loss.item())
+            for step, (imgs, labels, attrs) in enumerate(self.val_loader):
+                imgs, labels = imgs.cuda(), labels.cuda()
+                if self.with_attribute:
+                    attrs = attrs.cuda()
+                    attrs = attrs.float()
+                    pred_id, pred_attrs = self.model(imgs)
+                    assert pred_attrs.shape[-1] == 134
+                    loss_id = self.criterion[0](pred_id, labels)
+                    loss_attrs = self.criterion[1](pred_attrs, attrs)
+                    loss = loss_id + loss_attrs
+                else:
+                    pred_id = self.model(imgs)
+                    loss = self.criterion(pred_id, labels)
+                assert pred_id.shape[-1] == self.config['DATASET']['NUM_CATEGORY']
+                losses.update(loss.item(), labels.size(0))
 
-        valid_loss = loss_meter.avg
+                prec = accuracy(pred_id.data, labels.data, topk=(1, 2, 5))
+                prec1.update(prec[0].item(), labels.size(0))
+                prec2.update(prec[1].item(), labels.size(0))
+                prec5.update(prec[2].item(), labels.size(0))
 
-        gt_label = np.concatenate(gt_list, axis=0)
-        preds_probs = np.concatenate(preds_probs, axis=0)
-        return valid_loss, gt_label, preds_probs
+                _, predicted = torch.max(pred_id.data, dim=1)
+                acc = (predicted == labels).sum().item()
+                correct.update(acc, labels.size(0))
+
+        print('Val: [{}] '
+              'Loss {:.2f} ({:.2f})\t'
+              'Acc {:.2f} ({:.2f})\t'
+              'Prec1 {:.2%} ({:.2%})\t'
+              'Prec2 {:.2%} ({:.2%})\t'
+              'Prec5 {:.2%} ({:.2%})\t'
+              .format(epoch,
+                      losses.val, losses.avg,
+                      correct.val, correct.avg,
+                      prec1.val, prec1.avg,
+                      prec2.val, prec2.avg,
+                      prec5.val, prec5.avg
+                      ))
+
+        return correct.avg, losses.avg
