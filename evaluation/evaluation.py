@@ -2,9 +2,12 @@ from utils.meters import AverageMeter
 import numpy as np
 import torch
 import time
-from .classification import accuracy
+from .classification import accuracy, getclassAccuracy
 from torch import nn
 from torch.backends import cudnn
+from sklearn import metrics
+from sklearn.metrics import top_k_accuracy_score
+
 
 class Evaluation(object):
     def __init__(self, model, dataloader, classes, ten_crops, with_attribute=False):
@@ -19,15 +22,16 @@ class Evaluation(object):
         self.with_attribute = with_attribute
 
     def test(self, topk=(1,)):
+        self.model.eval()
         # Evaluate model on validation set
 
         val_top1, val_top2, val_top5, val_loss, val_ClassTPDic = self.__eval(topk)
 
         # Save Validation Class Accuracy
         val_ClassAcc_top1 = (val_ClassTPDic['Top1'] / len(self.classes)) * 100
-        np.savetxt('ValidationTop1ClassAccuracy.txt', np.transpose(val_ClassAcc_top1),'%f')
+        np.savetxt('ValidationTop1ClassAccuracy.txt', np.transpose(val_ClassAcc_top1), '%f')
 
-        val_ClassAcc_top2 = (val_ClassTPDic['Top2'] /len(self.classes)) * 100
+        val_ClassAcc_top2 = (val_ClassTPDic['Top2'] / len(self.classes)) * 100
         np.savetxt('ValidationTop2ClassAccuracy.txt', np.transpose(val_ClassAcc_top2), '%f')
 
         val_ClassAcc_top5 = (val_ClassTPDic['Top5'] / len(self.classes)) * 100
@@ -54,8 +58,8 @@ class Evaluation(object):
         ClassTPs_Top1 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
         ClassTPs_Top2 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
         ClassTPs_Top5 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
-        Predictions = np.zeros(len(self.dataloader))
-        SceneGTLabels = np.zeros(len(self.dataloader))
+        y_pred = []
+        y_true = []
 
         # Start data time
         data_time_start = time.time()
@@ -71,19 +75,31 @@ class Evaluation(object):
                     bs, ncrops, c, h, w = images.size()
                     images = images.view(-1, c, h, w)
 
-                outputs, attrs, features = self.model(images)
+                if self.with_attribute:
+                    outputs, _ = self.model(images)
+                else:
+                    outputs = self.model(images)
+
                 if self.ten_crops:
                     outputs = outputs.view(bs, ncrops, -1).mean(1)
 
-                loss = self.criterion(outputs, labels)
+                if self.with_attribute:
+                    loss = self.criterion[0](outputs, labels)
+                else:
+                    loss = self.criterion(outputs, labels)
+
+                _, predicted = torch.max(outputs.data, dim=1)
+                y_true = np.append(y_true, labels.cpu().numpy(), axis=0)
+                y_pred = np.append(y_pred, predicted.cpu().numpy(), axis=0)
+
+                # Compute class accuracy
+                ClassTPs = getclassAccuracy(outputs, labels, len(self.classes), topk)
+                ClassTPs_Top1 += ClassTPs[0]
+                ClassTPs_Top2 += ClassTPs[1]
+                ClassTPs_Top5 += ClassTPs[2]
+
+                # Measure Top1, Top2 and Top5 accuracy
                 prec1, prec2, prec5 = accuracy(outputs.data, labels.data, topk)
-
-                # ten_predictions = self.__kTopPredictedClasses(10, outputs)
-                classTps = self._getClassAccuracy(outputs, labels, topk)
-
-                ClassTPs_Top1 += classTps[0]
-                ClassTPs_Top2 += classTps[1]
-                ClassTPs_Top5 += classTps[2]
 
                 losses.update(loss.item(), labels.size(0))
                 top1.update(prec1.item(), labels.size(0))
@@ -106,34 +122,12 @@ class Evaluation(object):
             print(
                 'Elapsed time for {} set evaluation {time:.3f} seconds'.format(set, time=time.time() - data_time_start))
             print("")
+            print(metrics.precision_score(y_true=y_true,
+                                          y_pred=y_pred,
+                                          average='micro'))
             return top1.avg, top2.avg, top5.avg, losses.avg, ClassTPDic
 
     def _kTopPredictedClasses(self, kth, predictions):
         _, preds = predictions.topk(kth, largest=True, sorted=True)
         idx = preds.cpu().numpy()[0]
         return idx
-
-    def _getClassAccuracy(self,output, target, topk=(1,)):
-
-        """
-        Computes the top-k accuracy between output and target and aggregates it by class
-        :param output: output vector from the network
-        :param target: ground-truth
-        :param nclasses: nclasses in the problem
-        :param topk: Top-k results desired, i.e. top1, top2, top5
-        :return: topk vectors aggregated by class
-        """
-        maxk = max(topk)
-
-        score, label_index = output.topk(k=maxk, dim=1, largest=True, sorted=True)
-        correct = label_index.eq(torch.unsqueeze(target, 1))
-
-        ClassAccuracyRes = []
-        for k in topk:
-            ClassAccuracy = torch.zeros([1, len(self.classes)], dtype=torch.uint8).cuda()
-            correct_k = correct[:, :k].sum(1)
-            for n in range(target.shape[0]):
-                ClassAccuracy[0, target[n]] += correct_k[n].byte()
-            ClassAccuracyRes.append(ClassAccuracy)
-
-        return ClassAccuracyRes

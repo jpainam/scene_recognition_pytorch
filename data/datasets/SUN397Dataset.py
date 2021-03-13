@@ -16,25 +16,54 @@ NUM_TEST_IMAGES = 19850
 SUN_ATTRIBUTES_CLASSES = 102
 
 
-
-class SUN397Dataset(Dataset):
-    def __init__(self, root: str, transform, with_attribute=False):
+class SUN397Dataset(torchvision.datasets.ImageFolder):
+    def __init__(self, root: str, transform, with_attribute=False, xi=.8):
+        super().__init__(root, transform)
         self.with_attribute = with_attribute
         self.train_val = 'val' if 'val' in root else 'train'
-        self._transform = transform
-        self.root = root
 
+        self.xi = xi
         if with_attribute:
-        #    pass
-        #if 'train' in self.train_val:
-            '''data = pickle.load(open(os.path.join('/home/paul/datasets/SUN397', f'{self.train_val}_annotations.pkl'), 'rb'))
+            data = pickle.load(open(os.path.join('/home/paul/datasets/SUN397', f'{self.train_val}_annotations.pkl'), 'rb'))
             self.attribute_images = list(data['images'])
             self.attributes = data['attributes']
             # categories = data['categories']
             self.attribute_labels = data['labels']
-            assert len(self.attribute_images) == len(self.imgs)'''
+            assert len(self.attribute_images) == len(self.imgs)
 
-            attrs = loadmat('/home/paul/datasets/SUN397/SUNAttributeDB/attributeLabels_continuous.mat')
+    def __getitem__(self, idx):
+        images, labels = super(SUN397Dataset, self).__getitem__(idx)
+        attrs = []
+        img_path, class_index = self.imgs[idx]
+        if self.with_attribute:
+            attrs = self.attribute_labels[self.attribute_images.index(os.path.basename(img_path))]
+            attrs[attrs > self.xi] = 1.
+            attrs[attrs <= self.xi] = 0.
+
+        return images, labels, attrs
+
+
+
+class SUN397Dataset1(Dataset):
+    def __init__(self, root: str, transform, with_attribute=False, xi=.8):
+        self.with_attribute = with_attribute
+        self.train_val = 'val' if 'val' in root else 'train'
+        self._transform = transform
+        assert(self._transform is not None)
+        self.root = root
+        self.xi = xi
+
+        if with_attribute:
+            raise Exception("With attribute of SUN397 unimplemented")
+        if 'train' in self.train_val:
+            data = pickle.load(open(os.path.join('/home/paul/datasets/SUN397', f'{self.train_val}_annotations.pkl'), 'rb'))
+            self.attribute_images = list(data['images'])
+            self.attributes = data['attributes']
+            # categories = data['categories']
+            self.attribute_labels = data['labels']
+            assert len(self.attribute_images) == len(self.imgs)
+
+            '''attrs = loadmat('/home/paul/datasets/SUN397/SUNAttributeDB/attributeLabels_continuous.mat')
             images = loadmat('/home/paul/datasets/SUN397/SUNAttributeDB/images.mat')
             classes = loadmat('/home/paul/datasets/SUN397/SUNAttributeDB/attributes.mat')
             classes = np.array(classes['attributes']).squeeze()
@@ -52,13 +81,13 @@ class SUN397Dataset(Dataset):
             if self.train_val == 'train':
                 assert len(images) == NUM_TRAIN_IMAGES
                 assert len(attrs) == len(images)
-            assert len(self.imgs) == NUM_TRAIN_IMAGES
-        '''if 'val' in self.train_val:
+            assert len(self.imgs) == NUM_TRAIN_IMAGES'''
+        if 'val' in self.train_val:
             images = glob.glob(os.path.join(self.root, '*', '*.jpg'))
             self.imgs = [x[len(self.root) + 1:] for x in images]
             assert len(self.imgs) == NUM_TEST_IMAGES
             classes = [x.split("/")[-2] for x in images]
-            self.classes = classes'''
+            self.classes = classes
 
     def __len__(self):
         return len(self.imgs)
@@ -128,6 +157,7 @@ class SUN397DatasetAttribute(Dataset):
 
         img = Image.open(os.path.join(self.root, img))
         assert img is not None
+        attrs = []
 
         # Convert it to RGB if gray-scale
         if img.mode is not "RGB":
@@ -137,4 +167,4 @@ class SUN397DatasetAttribute(Dataset):
             img = self._transform(img)
         labels = self.attributes[idx]
 
-        return img, labels
+        return img, labels, attrs

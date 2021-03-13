@@ -66,6 +66,7 @@ class ResNet(nn.Module):
         x = self.features(x)
         x = x.view(x.size(0), -1)
         # [B x 2048]
+        pred_attrs = []
         if self.with_attribute:
             pred_attrs = [self.__getattr__("attr_%d" % a)(x) for a in range(self.num_attrs)]
             pred_attrs = torch.cat(pred_attrs, dim=1)

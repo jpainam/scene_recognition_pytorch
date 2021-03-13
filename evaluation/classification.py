@@ -23,25 +23,41 @@ def precision(outputs, labels):
 
 
 def accuracy(output, target, topk=(1,), is_multilabel=False):
-    output, target = to_torch(output), to_torch(target)
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, dim=1, largest=True, sorted=True)
     if not is_multilabel:
+        maxk = max(topk)
+        batch_size = target.size(0)
+        _, pred = output.topk(maxk, 1, True, True)
         pred = pred.t()
         correct = pred.eq(target.view(1, -1).expand_as(pred))
+        return [correct[:k].contiguous().view(-1).float().sum(0) * 100.0 / batch_size for k in topk]
+    else:
+        raise Exception('set is_multilabel=False, unimplemented multilabel')
 
-    ret = []
+
+def getclassAccuracy(output, target, nclasses, topk=(1,)):
+    """
+    Computes the top-k accuracy between output and target and aggregates it by class
+    :param output: output vector from the network
+    :param target: ground-truth
+    :param nclasses: nclasses in the problem
+    :param topk: Top-k results desired, i.e. top1, top2, top5
+    :return: topk vectors aggregated by class
+    """
+    maxk = max(topk)
+
+    score, label_index = output.topk(k=maxk, dim=1, largest=True, sorted=True)
+    correct = label_index.eq(torch.unsqueeze(target, 1))
+
+    ClassAccuracyRes = []
     for k in topk:
-        if not is_multilabel:
-            correct_k = correct[:k].contiguous().view(-1).float().sum(dim=0, keepdim=True)
-            ret.append(correct_k.mul_(1. / batch_size))
-        else:
-            correct = (target * torch.zeros_like(target).scatter(1, pred[:, :k], 1)).float()
-            ret.append(correct.sum() / target.sum())
+        ClassAccuracy = torch.zeros([1, nclasses], dtype=torch.uint8).cuda()
+        correct_k = correct[:, :k].sum(1)
+        for n in range(target.shape[0]):
+            ClassAccuracy[0, target[n]] += correct_k[n].byte()
+        ClassAccuracyRes.append(ClassAccuracy)
 
-    return ret
+    return ClassAccuracyRes
+
 
 
 def accuracy2(output, target, topk=(1,)):
@@ -129,6 +145,8 @@ class LabelwiseAccuracy(Accuracy):
             raise NotComputableError('Accuracy must have at least one example before it can be computed.')
         return self._num_correct.type(torch.float) / self._num_examples
 '''
+
+
 def get_attribute_results(gt_label, preds_probs, thresold=0.5):
     pred_label = preds_probs > thresold
     eps = 1e-20
