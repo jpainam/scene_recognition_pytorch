@@ -10,6 +10,7 @@ class BaseTrainer:
                  summary_writer,
                  num_classes,
                  val_loader,
+                 xi=.8,
                  with_attribute=False):
         self.model = model
         self.train_loader = train_loader
@@ -21,6 +22,7 @@ class BaseTrainer:
         self.with_attribute = with_attribute
         assert num_classes != 0
         self.num_classes = num_classes
+        self.xi = xi
 
     def train(self, epoch):
         raise NotImplementedError
@@ -38,27 +40,28 @@ class AttributeTrainer(BaseTrainer):
         prec2 = AverageMeter()
         prec5 = AverageMeter()
 
-        for step, (imgs, labels, attrs) in enumerate(self.train_loader):
+        for step, (imgs, labels, orig_attrs) in enumerate(self.train_loader):
 
-            imgs, labels = imgs.cuda(), labels.cuda()
+            imgs, labels, orig_attrs = imgs.cuda(), labels.cuda(), orig_attrs.cuda()
+            attrs = orig_attrs.detach().clone()
+            attrs[attrs > self.xi] = 1.
+            attrs[attrs <= self.xi] = 0.
             pred_attrs = []
             if self.with_attribute:
-                attrs = attrs.cuda(),
-                attrs = attrs.float()
-                pred_id, pred_attrs = self.model(imgs)
+                pred_id, pred_attrs = self.model(imgs, orig_attrs)
                 assert pred_attrs.shape[-1] == 134
             else:
-                pred_id = self.model(imgs)
+                pred_id = self.model(imgs, orig_attrs)
             assert pred_id.shape[-1] == self.num_classes
 
             if self.with_attribute:
                 loss_id = self.criterion[0](pred_id, labels)
-                loss_attrs = self.criterion[1](pred_attrs, attrs)
+                loss_attrs = self.criterion[1](pred_attrs.float(), attrs.float())
                 loss = loss_id + loss_attrs
             else:
                 loss = self.criterion(pred_id, labels)
 
-            clip_grad_norm_(self.model.parameters(), max_norm=10.0)
+            #clip_grad_norm_(self.model.parameters(), max_norm=10.0)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -108,23 +111,26 @@ class AttributeTrainer(BaseTrainer):
         prec2 = AverageMeter()
         prec5 = AverageMeter()
         with torch.no_grad():
-            for step, (imgs, labels, attrs) in enumerate(self.val_loader):
-                imgs, labels = imgs.cuda(), labels.cuda()
+            for step, (imgs, labels, orig_attrs) in enumerate(self.val_loader):
+                imgs, labels, orig_attrs = imgs.cuda(), labels.cuda(), orig_attrs.cuda()
+                attrs = orig_attrs.detach().clone()
+                attrs[attrs > self.xi] = 1.
+                attrs[attrs <= self.xi] = 0.
                 if self.with_attribute:
-                    attrs = attrs.cuda()
-                    attrs = attrs.float()
-                    pred_id, pred_attrs = self.model(imgs)
+
+                    pred_id, pred_attrs = self.model(imgs, orig_attrs)
                     assert pred_attrs.shape[-1] == 134
                     loss_id = self.criterion[0](pred_id, labels)
-                    loss_attrs = self.criterion[1](pred_attrs, attrs)
+                    loss_attrs = self.criterion[1](pred_attrs.float(), attrs.float())
                     loss = loss_id + loss_attrs
                 else:
-                    pred_id = self.model(imgs)
+                    pred_id = self.model(imgs, orig_attrs)
                     loss = self.criterion(pred_id, labels)
                 assert pred_id.shape[-1] == self.num_classes
                 losses.update(loss.item(), labels.size(0))
 
-                prec = accuracy(pred_id.data, labels.data, topk=(1, 2, 5), is_multilabel=False)
+                prec = accuracy(pred_id.data, labels.data, topk=(1, 2, 5),
+                                is_multilabel=False)
                 prec1.update(prec[0].item(), labels.size(0))
                 prec2.update(prec[1].item(), labels.size(0))
                 prec5.update(prec[2].item(), labels.size(0))

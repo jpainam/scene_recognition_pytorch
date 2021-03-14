@@ -1,5 +1,7 @@
 from torch import nn
 from torch.nn import init
+import torch
+
 
 def weights_init_kaiming(m):
     classname = m.__class__.__name__
@@ -56,4 +58,24 @@ class ClassBlock(nn.Module):
         x = self.add_block(x)
         x = self.classifier(x)
         return x
+
+
+class Reweigthing(nn.Module):
+    def __init__(self, num_attrs):
+        super(Reweigthing, self).__init__()
+        self.lin1 = nn.Linear(num_attrs, num_attrs, bias=True)
+        self.lin2 = nn.Linear(num_attrs, num_attrs, bias=True)
+        # self.W2 = nn.Parameter(torch.randn((num_attrs, num_attrs)), requires_grad=True)
+        self.lin3 = nn.Linear(num_attrs, num_attrs, bias=True)
+        self.relu = torch.nn.ReLU()
+
+    def forward(self, feat_attrs, attrs):
+        feat_attrs, attrs = feat_attrs.float(), attrs.float()
+        b, f = attrs.size()
+        feat_attrs = feat_attrs.view(b, -1,  f).mean(1)
+        # out = self.W2 * attrs.t()
+        out = self.relu(self.lin1(feat_attrs)) + self.relu(self.lin2(attrs))
+        # out = torch.tanh(out)
+        out = self.relu(self.lin3(out))
+        return attrs * out
 

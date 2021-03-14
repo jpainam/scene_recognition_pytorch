@@ -19,9 +19,14 @@ parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 
-save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'])
+reweighting = CONFIG['TRAINING']['ARM']
+save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'],
+                    'arm' if reweighting else 'baseline')
 mkdir_if_missing(save_dir)
-mkdir_if_missing(CONFIG['MODEL']['CHECKPOINTS'])
+checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'],
+                      CONFIG['DATASET']['NAME'],
+                      'arm' if reweighting else 'baseline')
+mkdir_if_missing(checkpoint)
 log_name = f"train_{time.strftime('-%Y-%m-%d-%H-%M-%S')}.log"
 sys.stdout = Logger(osp.join(save_dir, log_name))
 
@@ -29,7 +34,6 @@ timestamp = time.strftime("0:%Y-%m-%dT%H-%M-%S")
 summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp))
 
 with_attribute = CONFIG['TRAINING']['WITH_ATTRIBUTE']
-
 
 if __name__ == "__main__":
 
@@ -77,7 +81,6 @@ if __name__ == "__main__":
                           with_attribute=with_attribute)
 
     epochs = CONFIG['TRAINING']['EPOCH']
-    dataloader = {"train": train_loader, "val": val_loader}
     for epoch in range(epochs):
         print("Epoch {}".format(epoch + 1))
         epoch_time = time.time()
@@ -89,15 +92,12 @@ if __name__ == "__main__":
             time.time() - epoch_time
         ))
 
-        print('-'*60)
+        print('-' * 60)
 
-        #evaluate.test(topk=(1, 2, 5))
+        # evaluate.test(topk=(1, 2, 5))
         trainer.eval(epoch)
 
         if (epoch + 1) % 10 == 0:
-            checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'])
-            if not os.path.exists(checkpoint):
-                os.makedirs(checkpoint)
             try:
                 torch.save(model.module.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
             except AttributeError:

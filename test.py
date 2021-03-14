@@ -28,8 +28,10 @@ if __name__ == "__main__":
                              num_attrs=len(attrs),
                              dropout=0.5)
     # Load the last epoch checkpoint
+    reweighting = CONFIG['TESTING']['ARM']
     checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'],
-                          'model_{}.pth.tar'.format(CONFIG['TESTING']['CHECKPOINT']))
+                          'arm' if reweighting else 'baseline')
+    checkpoint = osp.join(checkpoint, 'model_{}.pth.tar'.format(CONFIG['TESTING']['CHECKPOINT']))
     print()
     print(f"Checkpoint:  {checkpoint}!")
     print("Checkpoint loaded!! ")
