@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(description='Scene Recognition Training Procedu
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
-with_attribute = CONFIG['TRAINING']['WITH_ATTRIBUTE']
+with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 
 if __name__ == "__main__":
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
@@ -22,13 +22,16 @@ if __name__ == "__main__":
                                                             batch_size=CONFIG['TESTING']['BATCH_SIZE'],
                                                             ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                                                             with_attribute=with_attribute)
+    reweighting = CONFIG['MODEL']['ARM']
+
     model = models.get_model(with_attribute=with_attribute,
                              num_features=CONFIG['MODEL']['NUM_FEATURES'],
                              num_classes=len(class_names),
                              num_attrs=len(attrs),
+                             with_reweighting=reweighting,
                              dropout=0.5)
     # Load the last epoch checkpoint
-    reweighting = CONFIG['TESTING']['ARM']
+
     checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'],
                           'arm' if reweighting else 'baseline')
     checkpoint = osp.join(checkpoint, 'model_{}.pth.tar'.format(CONFIG['TESTING']['CHECKPOINT']))
@@ -49,5 +52,5 @@ if __name__ == "__main__":
 
     evaluate = Evaluation(model=model, dataloader=val_loader, classes=class_names,
                           ten_crops=CONFIG['TESTING']['TEN_CROPS'],
-                          with_attribute=CONFIG['TRAINING']['WITH_ATTRIBUTE'])
+                          with_attribute=CONFIG['MODEL']['WITH_ATTRIBUTE'])
     evaluate.test(topk=(1, 2, 5))

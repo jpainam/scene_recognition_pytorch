@@ -19,7 +19,7 @@ parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 
-reweighting = CONFIG['TRAINING']['ARM']
+reweighting = CONFIG['MODEL']['ARM']
 save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'],
                     'arm' if reweighting else 'baseline')
 mkdir_if_missing(save_dir)
@@ -33,7 +33,7 @@ sys.stdout = Logger(osp.join(save_dir, log_name))
 timestamp = time.strftime("0:%Y-%m-%dT%H-%M-%S")
 summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp))
 
-with_attribute = CONFIG['TRAINING']['WITH_ATTRIBUTE']
+with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 
 if __name__ == "__main__":
 
@@ -50,12 +50,11 @@ if __name__ == "__main__":
 
     ignored_params = list(map(id, model.features.parameters()))
     classifier_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
-
-    optimizer = torch.optim.SGD([{"params": model.features.parameters(), "lr": 0.01},
-                                 {"params": classifier_params, "lr": 0.1}],
-                                momentum=0.9, weight_decay=5e-4, nesterov=True)
-
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    params = [{"params": model.features.parameters(), "lr": 0.01},
+                {"params": classifier_params, "lr": 0.1}]
+    optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=5e-4, nesterov=True)
+    # optimizer = torch.optim.Adam(params, weight_decay=5e-4)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
     use_cuda = torch.cuda.is_available()
 
     if with_attribute:
@@ -68,7 +67,8 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
-    trainer = AttributeTrainer(model=model, train_loader=train_loader, val_loader=val_loader,
+    trainer = AttributeTrainer(model=model, train_loader=train_loader,
+                               val_loader=val_loader,
                                with_attribute=with_attribute,
                                summary_writer=summary_writer,
                                num_classes=CONFIG['DATASET']['NUM_CATEGORY'],
@@ -94,7 +94,7 @@ if __name__ == "__main__":
 
         print('-' * 60)
 
-        # evaluate.test(topk=(1, 2, 5))
+        evaluate.test(topk=(1, 2, 5))
         trainer.eval(epoch)
 
         if (epoch + 1) % 10 == 0:

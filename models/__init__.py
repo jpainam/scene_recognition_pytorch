@@ -7,12 +7,14 @@ def get_model(num_classes=0,
               dropout=0.5,
               num_attrs=0,
               with_attribute=False,
+            with_reweighting=False,
               num_features=2048
               ):
 
     model = resnet50(pretrained=True,
                      num_classes=num_classes,
                      num_attrs=num_attrs,
+                     with_reweighting=with_reweighting,
                      with_attribute=with_attribute,
                      num_features=int(num_features))
     print()

@@ -10,7 +10,8 @@ from .datasets.MITIndoor67Dataset import MITIndoor67Dataset
 from .datasets.SUN397Dataset import SUN397Dataset
 
 
-def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder='val', batch_size=64, ten_crops=False,
+def get_data(dataset="MITIndoor67", root=None, train_folder='train',
+             val_folder='val', batch_size=64, ten_crops=False,
              with_attribute=False):
     assert root is not None
     train_transform = transforms.Compose([
@@ -51,10 +52,11 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train', val_folder=
         train_set = SUN397Dataset(osp.join(root, train_folder),
                                   train_transform,
                                   with_attribute=with_attribute)
-        assert (len(train_set) == 50 * 397)
+
         val_set = SUN397Dataset(osp.join(root, val_folder),
                                 val_transform,
                                 with_attribute=with_attribute)
+        assert (len(train_set) == 50 * 397)
         assert (len(val_set) == 50 * 397)
 
     train_loader = torch.utils.data.DataLoader(train_set,

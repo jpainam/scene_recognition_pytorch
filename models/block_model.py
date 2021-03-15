@@ -60,9 +60,9 @@ class ClassBlock(nn.Module):
         return x
 
 
-class Reweigthing(nn.Module):
+class Reweighting(nn.Module):
     def __init__(self, num_attrs):
-        super(Reweigthing, self).__init__()
+        super(Reweighting, self).__init__()
         self.lin1 = nn.Linear(num_attrs, num_attrs, bias=True)
         self.lin2 = nn.Linear(num_attrs, num_attrs, bias=True)
         # self.W2 = nn.Parameter(torch.randn((num_attrs, num_attrs)), requires_grad=True)

@@ -6,15 +6,16 @@ from torch.nn.utils import  clip_grad_norm_
 
 
 class BaseTrainer:
-    def __init__(self, model, train_loader, criterion, optimizer, config,
+    def __init__(self, model, train_loader, val_loader,
+                 criterion, optimizer,
+                 config,
                  summary_writer,
                  num_classes,
-                 val_loader,
                  xi=.8,
                  with_attribute=False):
         self.model = model
         self.train_loader = train_loader
-        self.val_loader = train_loader
+        self.val_loader = val_loader
         self.criterion = criterion
         self.optimizer = optimizer
         self.config = config
@@ -42,12 +43,13 @@ class AttributeTrainer(BaseTrainer):
 
         for step, (imgs, labels, orig_attrs) in enumerate(self.train_loader):
 
-            imgs, labels, orig_attrs = imgs.cuda(), labels.cuda(), orig_attrs.cuda()
-            attrs = orig_attrs.detach().clone()
-            attrs[attrs > self.xi] = 1.
-            attrs[attrs <= self.xi] = 0.
+            imgs, labels = imgs.cuda(), labels.cuda()
             pred_attrs = []
             if self.with_attribute:
+                orig_attrs = orig_attrs.cuda()
+                attrs = orig_attrs.detach().clone()
+                attrs[attrs > self.xi] = 1.
+                attrs[attrs <= self.xi] = 0.
                 pred_id, pred_attrs = self.model(imgs, orig_attrs)
                 assert pred_attrs.shape[-1] == 134
             else:
@@ -55,9 +57,10 @@ class AttributeTrainer(BaseTrainer):
             assert pred_id.shape[-1] == self.num_classes
 
             if self.with_attribute:
-                loss_id = self.criterion[0](pred_id, labels)
+                loss = self.criterion[0](pred_id, labels)
                 loss_attrs = self.criterion[1](pred_attrs.float(), attrs.float())
-                loss = loss_id + loss_attrs
+                if epoch > 15:
+                    loss += loss_attrs
             else:
                 loss = self.criterion(pred_id, labels)
 
@@ -71,11 +74,9 @@ class AttributeTrainer(BaseTrainer):
             prec1.update(prec[0].item(), labels.size(0))
             prec2.update(prec[1].item(), labels.size(0))
             prec5.update(prec[2].item(), labels.size(0))
-            _, predicted = torch.max(pred_id.data, dim=1)
-            acc = (predicted == labels).sum().item()
-            #number_of_correct = torch.sum(preds == attrs.bool()).item()
-            #total_correct = attrs.size(0) * attrs.size(1)
-            correct.update(acc, labels.size(0))
+            y_pred = pred_id.argmax(dim=1)
+            acc = (y_pred == labels).sum().item() / labels.size(0) * 100
+            correct.update(acc, labels.size(0)/100.)
 
             # tensorboard
             if self.summary_writer is not None:
@@ -112,17 +113,18 @@ class AttributeTrainer(BaseTrainer):
         prec5 = AverageMeter()
         with torch.no_grad():
             for step, (imgs, labels, orig_attrs) in enumerate(self.val_loader):
-                imgs, labels, orig_attrs = imgs.cuda(), labels.cuda(), orig_attrs.cuda()
-                attrs = orig_attrs.detach().clone()
-                attrs[attrs > self.xi] = 1.
-                attrs[attrs <= self.xi] = 0.
+                imgs, labels = imgs.cuda(), labels.cuda()
                 if self.with_attribute:
-
+                    orig_attrs = orig_attrs.cuda()
+                    attrs = orig_attrs.detach().clone()
+                    attrs[attrs > self.xi] = 1.
+                    attrs[attrs <= self.xi] = 0.
                     pred_id, pred_attrs = self.model(imgs, orig_attrs)
                     assert pred_attrs.shape[-1] == 134
-                    loss_id = self.criterion[0](pred_id, labels)
+                    loss = self.criterion[0](pred_id, labels)
                     loss_attrs = self.criterion[1](pred_attrs.float(), attrs.float())
-                    loss = loss_id + loss_attrs
+                    if epoch > 15:
+                        loss += loss_attrs
                 else:
                     pred_id = self.model(imgs, orig_attrs)
                     loss = self.criterion(pred_id, labels)
@@ -135,9 +137,9 @@ class AttributeTrainer(BaseTrainer):
                 prec2.update(prec[1].item(), labels.size(0))
                 prec5.update(prec[2].item(), labels.size(0))
 
-                _, predicted = torch.max(pred_id.data, dim=1)
-                acc = (predicted == labels).sum().item()
-                correct.update(acc, labels.size(0))
+                y_pred = pred_id.argmax(dim=1)
+                acc = (y_pred == labels).sum().item() / labels.size(0) * 100
+                correct.update(acc, labels.size(0)/100.)
 
         print('Val: [{}] '
               'Loss {:.2f} ({:.2f})\t'

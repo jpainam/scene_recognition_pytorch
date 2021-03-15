@@ -60,27 +60,30 @@ class Evaluation(object):
         ClassTPs_Top1 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
         ClassTPs_Top2 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
         ClassTPs_Top5 = torch.zeros(1, len(self.classes), dtype=torch.uint8).cuda()
-        y_pred = []
-        y_true = []
+        y_preds = []
+        y_trues = []
 
         # Start data time
         data_time_start = time.time()
-
+        #feat = torch.tensor([])
         with torch.no_grad():
             for i, (images, labels, orig_attrs) in enumerate(self.dataloader):
                 start_time = time.time()
                 if self.use_cuda:
-                    images, labels, orig_attrs = images.cuda(), labels.cuda(), orig_attrs.cuda()
-
-                attrs = orig_attrs.detach().clone()
-                attrs[attrs > self.xi] = 1.
-                attrs[attrs <= self.xi] = 0.
+                    images, labels = images.cuda(), labels.cuda()
                 if self.ten_crops:
                     bs, ncrops, c, h, w = images.size()
                     images = images.view(-1, c, h, w)
 
                 if self.with_attribute:
+                    orig_attrs = orig_attrs.cuda()
+                    attrs = orig_attrs.detach().clone()
+                    attrs[attrs > self.xi] = 1.
+                    attrs[attrs <= self.xi] = 0.
                     outputs, _ = self.model(images, orig_attrs)
+                    #f = f.view(bs, ncrops, -1).mean(1)
+                    #print('Getting features {}'.format(f.shape))
+                    #feat = torch.cat([feat, f.cpu()], dim=0)
                 else:
                     outputs = self.model(images, orig_attrs)
 
@@ -89,9 +92,9 @@ class Evaluation(object):
 
                 loss = self.criterion(outputs, labels)
 
-                _, predicted = torch.max(outputs.data, dim=1)
-                y_true = np.append(y_true, labels.cpu().numpy(), axis=0)
-                y_pred = np.append(y_pred, predicted.cpu().numpy(), axis=0)
+                y_pred = outputs.argmax(dim=1)
+                y_trues = np.append(y_trues, labels.cpu().numpy(), axis=0)
+                y_preds = np.append(y_preds, y_pred.cpu().numpy(), axis=0)
 
                 # Compute class accuracy
                 ClassTPs = getclassAccuracy(outputs, labels, len(self.classes), topk)
@@ -123,9 +126,10 @@ class Evaluation(object):
             print(
                 'Elapsed time for {} set evaluation {time:.3f} seconds'.format(set, time=time.time() - data_time_start))
             print("")
-            print(metrics.precision_score(y_true=y_true,
-                                          y_pred=y_pred,
+            print(metrics.precision_score(y_true=y_trues,
+                                          y_pred=y_preds,
                                           average='micro'))
+            #np.savez('/home/paul/feat.npz', feat.numpy(), np.array(y_trues))
             return top1.avg, top2.avg, top5.avg, losses.avg, ClassTPDic
 
     def _kTopPredictedClasses(self, kth, predictions):

@@ -6,7 +6,8 @@ from torch.nn import init
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152']
 
-from models.block_model import ClassBlock, Reweigthing
+from models.block_model import ClassBlock, Reweighting
+
 
 class ResNet(nn.Module):
     __factory = {
@@ -18,6 +19,7 @@ class ResNet(nn.Module):
 
     def __init__(self, depth, pretrained=True, num_features=2048, dropout=0,
                  norm=False, with_attribute=False,
+                 with_reweighting=False,
                  num_classes=0, pool="avg", stride=1, num_attrs=0):
         super(ResNet, self).__init__()
         assert num_classes != 0, 'The number of classes must be non null'
@@ -28,7 +30,9 @@ class ResNet(nn.Module):
         self.num_attrs = num_attrs
         self.num_classes = num_classes
         self.with_attribute = with_attribute
-        self.reweigthing = Reweigthing(num_attrs=num_attrs)
+        if with_reweighting:
+            self.reweighting = Reweighting(num_attrs=num_attrs)
+        self.with_reweighting = with_reweighting
 
         if depth not in ResNet.__factory:
             raise KeyError(f"Unsupported resnet depth {depth} module, must be [18, 34, 50, 101]")
@@ -40,7 +44,7 @@ class ResNet(nn.Module):
         model_ft.fc = nn.Sequential()
 
         self.features = model_ft
-        self.classifier = ClassBlock(input_dim=self.num_features + self.num_attrs,
+        self.classifier = ClassBlock(input_dim=self.num_features + (self.num_attrs if self.with_reweighting else 0),
                                      class_num=num_classes, activ='none')
 
         assert self.num_features == 2048
@@ -73,9 +77,10 @@ class ResNet(nn.Module):
             pred_attrs = torch.cat([torch.sigmoid(p) for p in feat_attrs], dim=1)
             feat_attrs = torch.cat(feat_attrs, dim=1)
             # [B x num_attrs]
-            feat_attrs = self.reweigthing(feat_attrs, attrs)
-            feat_attrs = feat_attrs.repeat(10, 1)
-            x = torch.cat((x, feat_attrs), dim=-1)
+            if self.with_reweighting:
+                feat_attrs = self.reweigthing(feat_attrs, attrs)
+                feat_attrs = feat_attrs.repeat(10, 1)
+                x = torch.cat((x, feat_attrs), dim=-1)
 
         pred_id = self.classifier(x)
         if self.with_attribute:
