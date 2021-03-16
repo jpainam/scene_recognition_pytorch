@@ -3,10 +3,11 @@
 /demo.ipynb
 /wordcloud2.svg
 /wordcloud.pdf
-/word_cloud_plot.py
+/plots/word_cloud_plot.py
 /text.txt
-/plot_feature_pca.py
+/plots/plot_feature_pca.py
 /draft
 /build/
 /scene_recognition_pytorch.egg-info/
 /logs/
+/plots/

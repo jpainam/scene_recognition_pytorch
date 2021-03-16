@@ -10,7 +10,7 @@ import yaml
 import os
 from tensorboardX import SummaryWriter
 import models
-from trainer import AttributeTrainer
+from trainer import AttributeTrainer, ClassificationTrainer
 from evaluation.evaluation import Evaluation
 from models.ia_module import generate_gaussian
 
@@ -69,6 +69,9 @@ if __name__ == "__main__":
 
     trainer = AttributeTrainer(model=model, train_loader=train_loader,
                                val_loader=val_loader,
+                               num_attrs=len(attrs),
+                               save_dir=save_dir,
+                               attribute_list=attrs,
                                with_attribute=with_attribute,
                                summary_writer=summary_writer,
                                num_classes=CONFIG['DATASET']['NUM_CATEGORY'],
@@ -94,7 +97,7 @@ if __name__ == "__main__":
 
         print('-' * 60)
 
-        evaluate.test(topk=(1, 2, 5))
+        #evaluate.test(topk=(1, 2, 5))
         trainer.eval(epoch)
 
         if (epoch + 1) % 10 == 0:

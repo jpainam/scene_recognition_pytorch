@@ -3,10 +3,7 @@
 Define the params in the configuration file located in the `config` folder
 
 ### Training
-** To train the baseline
-```
-python main.py --config config/MITIdoor67.yaml --use_id
-```
+** To train
 ```
 python main.py --config config/MITIndoor67.yaml
 ```
