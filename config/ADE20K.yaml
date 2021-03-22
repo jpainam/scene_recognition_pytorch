@@ -3,19 +3,21 @@ DATASET:
   ROOT: /home/paul/datasets/ADEChallengeData2016
   TRAIN: images/training
   VAL: images/validation
+  NUM_CATEGORY: 1055
 
 MODEL:
   ARCH: 50
-  NUM_FEATURES: 0
-  CHECKPOINTS: ./checkpoints
+  NUM_FEATURES: 2048
+  CHECKPOINTS: ./resnet50_checkpoints
+  WITH_ATTRIBUTE: False
+  ARM: False
 
 TRAINING:
-  EPOCH: 30
-  BATCH_SIZE: 128
-  LOG_DIR: ./logs
-  WITH_ATTRIBUTE: True
+  EPOCH: 100
+  BATCH_SIZE: 64
+  LOG_DIR: ./resnet50_logs
 
 TESTING:
   BATCH_SIZE: 64
-  CHECKPOINT: 30
-  TEN_CROPS: TRUE
+  CHECKPOINT: 100
+  TEN_CROPS: True

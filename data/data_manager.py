@@ -43,11 +43,16 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train',
     if dataset == "ADE20K":
         train_set = ADE20KDataset(root, folder="training", transform=train_transform, with_attribute=with_attribute)
         val_set = ADE20KDataset(root, folder="validation", transform=val_transform, with_attribute=with_attribute)
+        assert len(train_set) == 20210
+        assert len(val_set) == 2000
+        assert len(train_set.classes) == 1055
+
     elif dataset == "MITIndoor67":
         train_set = MITIndoor67Dataset(osp.join(root, train_folder), train_transform, with_attribute=with_attribute)
         val_set = MITIndoor67Dataset(osp.join(root, val_folder), val_transform, with_attribute=with_attribute)
         assert len(val_set) == 20 * 67
         assert len(train_set) == 80 * 67
+        assert len(train_set.classes) == 67
     elif dataset == "SUN397":
         train_set = SUN397Dataset(osp.join(root, train_folder),
                                   train_transform,
@@ -58,6 +63,7 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train',
                                 with_attribute=with_attribute)
         assert (len(train_set) == 50 * 397)
         assert (len(val_set) == 50 * 397)
+        assert len(train_set.classes) == 397
 
     train_loader = torch.utils.data.DataLoader(train_set,
                                                batch_size=batch_size,

@@ -88,7 +88,7 @@ class ADE20KDataset(Dataset):
             img = self._transform(img)
 
         assert self.labels_index[idx] == self.classes.index(self.labels[idx])
-        attrs = None
+        attrs = []
         if self.with_attribute:
             attrs = self.attribute_labels[self.attribute_images.index(self.labels[idx])]
         return img, self.labels_index[idx], attrs

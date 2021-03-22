@@ -153,6 +153,7 @@ class AttributeTrainer(BaseTrainer):
 
         # Save results.
         result = {
+            'attribute_list': self.attribute_list,
             'average_acc': average_acc,
             'average_f1score': average_f1score,
             'accuracy_list': accuracy_list,
@@ -160,5 +161,8 @@ class AttributeTrainer(BaseTrainer):
             'recall_list': recall_list,
             'f1_score_list': f1_score_list,
         }
-        json.dump(open(os.path.join(self.save_dir, 'acc.mat'), 'w'), result)
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
+        print("Acc saved: {}/acc.json".format(self.save_dir))
+        json.dump(result, open(os.path.join(self.save_dir, 'acc.json'), 'w'))
 

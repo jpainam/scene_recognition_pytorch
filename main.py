@@ -1,18 +1,18 @@
-import torch
-from torch import nn
-import sys
-import os.path as osp
-from utils.loggers import Logger, mkdir_if_missing
-import time
-from data.data_manager import get_data
 import argparse
+import os.path as osp
+import sys
+import time
+
+import torch
 import yaml
-import os
 from tensorboardX import SummaryWriter
+from torch import nn
+
 import models
-from trainer import AttributeTrainer, ClassificationTrainer
+from data.data_manager import get_data
 from evaluation.evaluation import Evaluation
-from models.ia_module import generate_gaussian
+from trainer import ClassificationTrainer
+from utils.loggers import Logger, mkdir_if_missing
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
@@ -22,10 +22,14 @@ CONFIG = yaml.safe_load(open(args.config, 'r'))
 reweighting = CONFIG['MODEL']['ARM']
 save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'],
                     'arm' if reweighting else 'baseline')
-mkdir_if_missing(save_dir)
 checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'],
                       CONFIG['DATASET']['NAME'],
                       'arm' if reweighting else 'baseline')
+with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
+if not reweighting and with_attribute:
+    save_dir = save_dir + "2"
+    checkpoint = checkpoint + "2"
+mkdir_if_missing(save_dir)
 mkdir_if_missing(checkpoint)
 log_name = f"train_{time.strftime('-%Y-%m-%d-%H-%M-%S')}.log"
 sys.stdout = Logger(osp.join(save_dir, log_name))
@@ -33,7 +37,7 @@ sys.stdout = Logger(osp.join(save_dir, log_name))
 timestamp = time.strftime("0:%Y-%m-%dT%H-%M-%S")
 summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp))
 
-with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
+
 
 if __name__ == "__main__":
 
@@ -42,11 +46,15 @@ if __name__ == "__main__":
                                                             ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                                                             batch_size=CONFIG['TRAINING']['BATCH_SIZE'],
                                                             with_attribute=with_attribute)
+
+    print('checkpoint dir {}'.format(checkpoint))
+    print('save_dir/logs dir {}'.format(save_dir))
     model = models.get_model(num_classes=len(class_names),
                              with_attribute=with_attribute,
-                             num_features=CONFIG['MODEL']['NUM_FEATURES'],
+                             with_reweighting=with_attribute,
                              num_attrs=len(attrs),
-                             dropout=0.5)
+                             backbone=CONFIG['MODEL']['BACKBONE'],
+                             arch=CONFIG['MODEL']['ARCH'])
 
     ignored_params = list(map(id, model.features.parameters()))
     classifier_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
@@ -67,7 +75,7 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
-    trainer = AttributeTrainer(model=model, train_loader=train_loader,
+    trainer = ClassificationTrainer(model=model, train_loader=train_loader,
                                val_loader=val_loader,
                                num_attrs=len(attrs),
                                save_dir=save_dir,
@@ -97,8 +105,8 @@ if __name__ == "__main__":
 
         print('-' * 60)
 
-        #evaluate.test(topk=(1, 2, 5))
-        trainer.eval(epoch)
+        evaluate.test(topk=(1, 2, 5))
+        #trainer.eval(epoch)
 
         if (epoch + 1) % 10 == 0:
             try:

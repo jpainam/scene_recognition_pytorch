@@ -2,9 +2,10 @@ import torch
 from torch import nn
 import torchvision
 from torch.nn import init
+from torchvision import  models
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152']
+           'resnet152', 'densenet161']
 
 from models.block_model import ClassBlock, Reweighting
 
@@ -17,37 +18,45 @@ class ResNet(nn.Module):
         101: torchvision.models.resnet101,
     }
 
-    def __init__(self, depth, pretrained=True, num_features=2048, dropout=0,
+    def __init__(self, depth, pretrained=True,
                  norm=False, with_attribute=False,
                  with_reweighting=False,
-                 num_classes=0, pool="avg", stride=1, num_attrs=0):
+                 backbone='resnet',
+                 num_classes=0, stride=1, num_attrs=0):
         super(ResNet, self).__init__()
         assert num_classes != 0, 'The number of classes must be non null'
         self.depth = depth
         self.pretrained = pretrained
-        self.num_features = num_features
+
         self.norm = norm
         self.num_attrs = num_attrs
         self.num_classes = num_classes
         self.with_attribute = with_attribute
-        if with_reweighting:
-            self.reweighting = Reweighting(num_attrs=num_attrs)
         self.with_reweighting = with_reweighting
+        self.backbone = backbone
+        if self.with_reweighting:
+            self.reweighting = Reweighting(num_attrs=num_attrs)
 
-        if depth not in ResNet.__factory:
+        if 'resnet' in self.backbone and depth in ResNet.__factory:
+            model_ft = ResNet.__factory[depth](pretrained=pretrained)
+            self.num_features = 2048
+            if stride == 1:
+                model_ft.layer4[0].downsample[0].stride = (1, 1)
+                model_ft.layer4[0].conv2.stride = (1, 1)
+            model_ft.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+            model_ft.fc = nn.Sequential()
+            self.features = model_ft
+        elif 'densenet' in self.backbone:
+            model_ft = models.densenet161(pretrained=pretrained)
+            model_ft.features.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+            model_ft.fc = nn.Sequential()
+            self.features = model_ft.features
+            self.num_features = 1024
+        else:
             raise KeyError(f"Unsupported resnet depth {depth} module, must be [18, 34, 50, 101]")
-        model_ft = ResNet.__factory[depth](pretrained=pretrained)
-        if stride == 1:
-            model_ft.layer4[0].downsample[0].stride = (1, 1)
-            model_ft.layer4[0].conv2.stride = (1, 1)
-        model_ft.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        model_ft.fc = nn.Sequential()
 
-        self.features = model_ft
         self.classifier = ClassBlock(input_dim=self.num_features + (self.num_attrs if self.with_reweighting else 0),
                                      class_num=num_classes, activ='none')
-
-        assert self.num_features == 2048
         if self.with_attribute:
             for a in range(self.num_attrs):
                 self.__setattr__("attr_%d" % a, ClassBlock(input_dim=self.num_features,
@@ -102,6 +111,10 @@ def resnet50(**kwargs):
 
 def resnet101(**kwargs):
     return ResNet(101, **kwargs)
+
+
+def densenet161(**kwargs):
+    return ResNet(161, **kwargs)
 
 
 def resnet152(**kwargs):

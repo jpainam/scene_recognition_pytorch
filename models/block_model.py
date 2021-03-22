@@ -63,19 +63,20 @@ class ClassBlock(nn.Module):
 class Reweighting(nn.Module):
     def __init__(self, num_attrs):
         super(Reweighting, self).__init__()
-        self.lin1 = nn.Linear(num_attrs, num_attrs, bias=True)
-        self.lin2 = nn.Linear(num_attrs, num_attrs, bias=True)
+        self.lin1 = nn.Linear(num_attrs, num_attrs, bias=False)
+        self.lin2 = nn.Linear(num_attrs, num_attrs, bias=False)
         # self.W2 = nn.Parameter(torch.randn((num_attrs, num_attrs)), requires_grad=True)
         self.lin3 = nn.Linear(num_attrs, num_attrs, bias=True)
         self.relu = torch.nn.ReLU()
+        self.bn1 = nn.BatchNorm1d(num_features=num_attrs)
+        self.bn2 = nn.BatchNorm1d(num_features=num_attrs)
 
     def forward(self, feat_attrs, attrs):
         feat_attrs, attrs = feat_attrs.float(), attrs.float()
         b, f = attrs.size()
         feat_attrs = feat_attrs.view(b, -1,  f).mean(1)
         # out = self.W2 * attrs.t()
-        out = self.relu(self.lin1(feat_attrs)) + self.relu(self.lin2(attrs))
-        # out = torch.tanh(out)
+        out = self.bn1(self.lin1(feat_attrs)) + self.bn2(self.lin2(attrs))
         out = self.relu(self.lin3(out))
         return attrs * out
 

@@ -6,18 +6,18 @@ DATASET:
   NUM_CATEGORY: 67
 
 MODEL:
-  ARCH: 50
+  ARCH: 101
   NUM_FEATURES: 2048
-  CHECKPOINTS: ./checkpoints
-  WITH_ATTRIBUTE: True
+  CHECKPOINTS: ./resnet101_checkpoints
+  WITH_ATTRIBUTE: False
   ARM: False
 
 TRAINING:
   EPOCH: 100
   BATCH_SIZE: 64
-  LOG_DIR: ./logs
+  LOG_DIR: ./resnet101_logs
 
 TESTING:
   BATCH_SIZE: 64
   CHECKPOINT: 100
-  TEN_CROPS: False
+  TEN_CROPS: True

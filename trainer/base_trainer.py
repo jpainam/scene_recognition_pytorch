@@ -10,7 +10,7 @@ class BaseTrainer:
                  xi=.8,
                  with_attribute=False):
         self.model = model
-        self.save_dir = save_dir,
+        self.save_dir = save_dir
         self.train_loader = train_loader
         self.val_loader = val_loader
         self.criterion = criterion
