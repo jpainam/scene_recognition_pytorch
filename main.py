@@ -7,12 +7,13 @@ import torch
 import yaml
 from tensorboardX import SummaryWriter
 from torch import nn
-
+from torchsummary import summary
 import models
 from data.data_manager import get_data
 from evaluation.evaluation import Evaluation
 from trainer import ClassificationTrainer
 from utils.loggers import Logger, mkdir_if_missing
+
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
@@ -20,15 +21,22 @@ args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 
 reweighting = CONFIG['MODEL']['ARM']
-save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'],
-                    'arm' if reweighting else 'baseline')
-checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'],
-                      CONFIG['DATASET']['NAME'],
-                      'arm' if reweighting else 'baseline')
 with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
-if not reweighting and with_attribute:
-    save_dir = save_dir + "2"
-    checkpoint = checkpoint + "2"
+backbone_name = CONFIG['MODEL']['BACKBONE']
+ext_f = "baseline"
+ext_f = "32x16d"
+if reweighting:
+    ext_f = "arm"
+elif with_attribute:
+    ext_f = "attribute"
+output_folder = "{}{}_{}".format(backbone_name,
+                                 CONFIG['MODEL']['ARCH'],
+                                 ext_f)
+
+save_dir = osp.join('./logs', CONFIG['DATASET']['NAME'], output_folder)
+checkpoint = osp.join('./checkpoints',
+                      CONFIG['DATASET']['NAME'], output_folder)
+
 mkdir_if_missing(save_dir)
 mkdir_if_missing(checkpoint)
 log_name = f"train_{time.strftime('-%Y-%m-%d-%H-%M-%S')}.log"
@@ -37,12 +45,12 @@ sys.stdout = Logger(osp.join(save_dir, log_name))
 timestamp = time.strftime("0:%Y-%m-%dT%H-%M-%S")
 summary_writer = SummaryWriter(osp.join(save_dir, 'tensorboard_log' + timestamp))
 
-
-
 if __name__ == "__main__":
 
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
                                                             root=CONFIG['DATASET']['ROOT'],
+                                                            train_folder=CONFIG['DATASET']['TRAIN'],
+                                                            val_folder=CONFIG['DATASET']['VAL'],
                                                             ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                                                             batch_size=CONFIG['TRAINING']['BATCH_SIZE'],
                                                             with_attribute=with_attribute)
@@ -62,7 +70,7 @@ if __name__ == "__main__":
                 {"params": classifier_params, "lr": 0.1}]
     optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=5e-4, nesterov=True)
     # optimizer = torch.optim.Adam(params, weight_decay=5e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
     use_cuda = torch.cuda.is_available()
 
     if with_attribute:
@@ -75,15 +83,16 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
+    summary(model, (3, 224, 224))
     trainer = ClassificationTrainer(model=model, train_loader=train_loader,
-                               val_loader=val_loader,
-                               num_attrs=len(attrs),
-                               save_dir=save_dir,
-                               attribute_list=attrs,
-                               with_attribute=with_attribute,
-                               summary_writer=summary_writer,
-                               num_classes=CONFIG['DATASET']['NUM_CATEGORY'],
-                               criterion=criterion, optimizer=optimizer, config=CONFIG)
+                                    val_loader=val_loader,
+                                    num_attrs=len(attrs),
+                                    save_dir=save_dir,
+                                    attribute_list=attrs,
+                                    with_attribute=with_attribute,
+                                    summary_writer=summary_writer,
+                                    num_classes=CONFIG['DATASET']['NUM_CATEGORY'],
+                                    criterion=criterion, optimizer=optimizer, config=CONFIG)
 
     evaluate = Evaluation(model=model,
                           dataloader=val_loader,
@@ -106,7 +115,7 @@ if __name__ == "__main__":
         print('-' * 60)
 
         evaluate.test(topk=(1, 2, 5))
-        #trainer.eval(epoch)
+        # trainer.eval(epoch)
 
         if (epoch + 1) % 10 == 0:
             try:

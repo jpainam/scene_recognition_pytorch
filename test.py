@@ -16,13 +16,19 @@ CONFIG = yaml.safe_load(open(args.config, 'r'))
 with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 reweighting = CONFIG['MODEL']['ARM']
 
-save_dir = osp.join(CONFIG['TRAINING']['LOG_DIR'], CONFIG['DATASET']['NAME'],
-                    'arm' if reweighting else 'baseline')
-checkpoint = osp.join(CONFIG['MODEL']['CHECKPOINTS'], CONFIG['DATASET']['NAME'],
-                      'arm' if reweighting else 'baseline')
-if not reweighting and with_attribute:
-    save_dir = save_dir + "2"
-    checkpoint = checkpoint + "2"
+ext_f = "baseline"
+if reweighting:
+    ext_f = "arm"
+elif with_attribute:
+    ext_f = "attribute"
+output_folder = "{}{}_{}".format(CONFIG['MODEL']['BACKBONE'],
+                                 CONFIG['MODEL']['ARCH'],
+                                 ext_f)
+
+save_dir = osp.join('./logs', CONFIG['DATASET']['NAME'],
+                    output_folder)
+checkpoint = osp.join('checkpoints', CONFIG['DATASET']['NAME'],
+                      output_folder)
 
 if __name__ == "__main__":
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],

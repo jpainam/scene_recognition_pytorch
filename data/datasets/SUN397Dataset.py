@@ -43,7 +43,6 @@ class SUN397Dataset(torchvision.datasets.ImageFolder):
         return images, labels, attrs
 
 
-
 class SUN397Dataset1(Dataset):
     def __init__(self, root: str, transform, with_attribute=False, xi=.8):
         self.with_attribute = with_attribute

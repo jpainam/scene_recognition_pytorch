@@ -6,6 +6,7 @@ import errno
 
 __all__ = ['Logger']
 
+
 def mkdir_if_missing(dirname):
     """Creates dirname if it is missing."""
     if not osp.exists(dirname):

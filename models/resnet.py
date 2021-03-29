@@ -75,7 +75,7 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*reslayers)'''
 
-    def forward(self, x, attrs):
+    def forward(self, x, attrs=None):
         # [B x C x W x H]
         x = self.features(x)
         x = x.view(x.size(0), -1)

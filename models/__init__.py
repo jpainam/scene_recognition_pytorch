@@ -1,6 +1,8 @@
 from .resnet import *
 from torch import nn
 import torch
+from .resnext import *
+
 
 
 def get_model(num_classes=0,
@@ -12,14 +14,15 @@ def get_model(num_classes=0,
               arch=50,
               backbone='resnet'
               ):
-    if arch == 50:
+    if 'resnet' in backbone and arch == 50:
         model = resnet50(pretrained=True,
                          num_classes=num_classes,
                          num_attrs=num_attrs,
                          backbone=backbone,
                          with_reweighting=with_reweighting,
                          with_attribute=with_attribute)
-    elif arch == 101:
+    elif 'resnet' in backbone and arch == 101:
+        print("Loading arch: resnet101")
         model = resnet101(pretrained=True,
                           num_classes=num_classes,
                           num_attrs=num_attrs,
@@ -33,6 +36,8 @@ def get_model(num_classes=0,
                             backbone=backbone,
                             with_reweighting=with_reweighting,
                             with_attribute=with_attribute)
+    elif 'resnext' in backbone:
+        model = ResNext(num_classes=num_classes)
     else:
         raise Exception('choose the network architecture properly')
     print()
@@ -42,29 +47,18 @@ def get_model(num_classes=0,
     print(f"Dropout : {dropout}")
     print(f"With Attribute : {with_attribute}")
     print(f"With ARM : {with_reweighting}")
-    # print(model)
-    '''if use_cuda:
-        model = model.cuda()
-    if torch.cuda.device_count() > 1:
-        model = nn.DataParallel(model)'''
+    print(model)
+    for param in model.parameters():
+        param.requires_grad = False
+    # Unfreeze a layer
+    for param in model.features.layer4[2].parameters():
+        param.requires_grad = True
+    for param in model.features.layer4[1].parameters():
+        param.requires_grad = True
+
+    #total_params = sum(p.numel() for p in model.parameters())
+    #print(f'{total_params:,} total parameters.')
+    #total_trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    #print(f'{total_trainable_params:,} training parameters.')
+
     return model
-
-
-def get_optimizer(model):
-    ignored_params = list(map(id, model.classifier.parameters()))
-    base_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
-
-    optimizer = torch.optim.SGD([{"params": base_params, "lr": 0.001},
-                                 {"params": model.classifier.parameters(), "lr": 0.01}],
-                                momentum=0.9, weight_decay=5e-4, nesterov=True)
-
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
-    use_cuda = torch.cuda.is_available()
-
-    epochs = CONFIG['TRAINING']['EPOCH']
-    dataloader = {"train": train_loader, "val": val_loader}
-
-
-def get_criterion():
-    criterion = [nn.CrossEntropyLoss(), nn.MultiLabelSoftMarginLoss()]
-    return criterion
