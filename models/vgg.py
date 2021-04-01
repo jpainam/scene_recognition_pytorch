@@ -1,15 +1,17 @@
 from torch import nn
 import torchvision
-from .block_model import ClassBlock
+from .block_model import ClassBlock, weights_init_kaiming
 
 
-class DenseNet(nn.Module):
+class VGGNet(nn.Module):
     def __init__(self, num_classes, pretrained=True, num_features=2208):
-        super(DenseNet, self).__init__()
+        super(VGGNet, self).__init__()
         self.num_classes = num_classes
-        model_ft = torchvision.models.densenet161(pretrained=pretrained)
-        model_ft.features.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        model_ft.fc = nn.Sequential()
+        model_ft = torchvision.models.vgg19(pretrained=pretrained)
+        model_ft.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+
+        model_ft.classifier = nn.Sequential()
         self.features = model_ft.features
         self.num_features = num_features
         self.classifier = nn.Sequential(nn.Dropout(p=0.5),
@@ -17,8 +19,10 @@ class DenseNet(nn.Module):
                                         nn.LeakyReLU(inplace=True),
                                         nn.Linear(1024, self.num_classes),
                                         )
+        self.classifier.apply(weights_init_kaiming)
 
     def forward(self, x, attrs=None):
         x = self.features(x)
+        x = self.avgpool(x)
         x = x.view(x.size(0), -1)
         return self.classifier(x)

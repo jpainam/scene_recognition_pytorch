@@ -14,7 +14,6 @@ from evaluation.evaluation import Evaluation
 from trainer import ClassificationTrainer
 from utils.loggers import Logger, mkdir_if_missing
 
-
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
 parser.add_argument('--config', metavar='DIR', help='Configuration file path')
 args = parser.parse_args()
@@ -24,7 +23,8 @@ reweighting = CONFIG['MODEL']['ARM']
 with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 backbone_name = CONFIG['MODEL']['BACKBONE']
 ext_f = "baseline"
-ext_f = "32x16d"
+if 'resnext' in backbone_name:
+    ext_f = "32x16d"
 if reweighting:
     ext_f = "arm"
 elif with_attribute:
@@ -60,6 +60,7 @@ if __name__ == "__main__":
     model = models.get_model(num_classes=len(class_names),
                              with_attribute=with_attribute,
                              with_reweighting=with_attribute,
+                             num_features=CONFIG['MODEL']['NUM_FEATURES'],
                              num_attrs=len(attrs),
                              backbone=CONFIG['MODEL']['BACKBONE'],
                              arch=CONFIG['MODEL']['ARCH'])
@@ -67,10 +68,10 @@ if __name__ == "__main__":
     ignored_params = list(map(id, model.features.parameters()))
     classifier_params = filter(lambda p: id(p) not in ignored_params, model.parameters())
     params = [{"params": model.features.parameters(), "lr": 0.01},
-                {"params": classifier_params, "lr": 0.1}]
+              {"params": classifier_params, "lr": 0.1}]
     optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=5e-4, nesterov=True)
     # optimizer = torch.optim.Adam(params, weight_decay=5e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
     use_cuda = torch.cuda.is_available()
 
     if with_attribute:
@@ -101,6 +102,7 @@ if __name__ == "__main__":
                           with_attribute=with_attribute)
 
     epochs = CONFIG['TRAINING']['EPOCH']
+    best_top1 = 0.0
     for epoch in range(epochs):
         print("Epoch {}".format(epoch + 1))
         epoch_time = time.time()
@@ -114,12 +116,20 @@ if __name__ == "__main__":
 
         print('-' * 60)
 
-        evaluate.test(topk=(1, 2, 5))
+        val_top1 = evaluate.test(topk=(1, 2, 5))
         # trainer.eval(epoch)
 
-        if (epoch + 1) % 10 == 0:
-            try:
+        try:
+            if val_top1 > best_top1:
+                torch.save(model.module.state_dict(), f"{checkpoint}/model_best.pth.tar")
+            if (epoch + 1) % 10 == 0:
                 torch.save(model.module.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
-            except AttributeError:
+        except AttributeError:
+            if val_top1 > best_top1:
+                torch.save(model.state_dict(), f"{checkpoint}/model_best.pth.tar")
+            if (epoch + 1) % 10 == 0:
                 torch.save(model.state_dict(), f"{checkpoint}/model_{epoch + 1}.pth.tar")
+
+        if val_top1 > best_top1: best_top1 = val_top1
+
         print('-' * 60)

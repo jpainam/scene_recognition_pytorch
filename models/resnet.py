@@ -5,7 +5,7 @@ from torch.nn import init
 from torchvision import  models
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-           'resnet152', 'densenet161']
+           'resnet152']
 
 from models.block_model import ClassBlock, Reweighting
 
@@ -37,7 +37,7 @@ class ResNet(nn.Module):
         if self.with_reweighting:
             self.reweighting = Reweighting(num_attrs=num_attrs)
 
-        if 'resnet' in self.backbone and depth in ResNet.__factory:
+        if depth in ResNet.__factory:
             model_ft = ResNet.__factory[depth](pretrained=pretrained)
             self.num_features = 2048
             if stride == 1:
@@ -46,12 +46,6 @@ class ResNet(nn.Module):
             model_ft.avgpool = nn.AdaptiveAvgPool2d((1, 1))
             model_ft.fc = nn.Sequential()
             self.features = model_ft
-        elif 'densenet' in self.backbone:
-            model_ft = models.densenet161(pretrained=pretrained)
-            model_ft.features.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-            model_ft.fc = nn.Sequential()
-            self.features = model_ft.features
-            self.num_features = 1024
         else:
             raise KeyError(f"Unsupported resnet depth {depth} module, must be [18, 34, 50, 101]")
 
@@ -112,9 +106,6 @@ def resnet50(**kwargs):
 def resnet101(**kwargs):
     return ResNet(101, **kwargs)
 
-
-def densenet161(**kwargs):
-    return ResNet(161, **kwargs)
 
 
 def resnet152(**kwargs):

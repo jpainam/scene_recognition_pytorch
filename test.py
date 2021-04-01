@@ -15,20 +15,23 @@ args = parser.parse_args()
 CONFIG = yaml.safe_load(open(args.config, 'r'))
 with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 reweighting = CONFIG['MODEL']['ARM']
+backbone_name = CONFIG['MODEL']['BACKBONE']
 
 ext_f = "baseline"
+if 'resnext' in backbone_name:
+    ext_f = "32x16d"
 if reweighting:
     ext_f = "arm"
 elif with_attribute:
     ext_f = "attribute"
-output_folder = "{}{}_{}".format(CONFIG['MODEL']['BACKBONE'],
+output_folder = "{}{}_{}".format(backbone_name,
                                  CONFIG['MODEL']['ARCH'],
                                  ext_f)
 
 save_dir = osp.join('./logs', CONFIG['DATASET']['NAME'],
                     output_folder)
-checkpoint = osp.join('checkpoints', CONFIG['DATASET']['NAME'],
-                      output_folder)
+checkpoint = osp.join('./checkpoints',
+                      CONFIG['DATASET']['NAME'], output_folder)
 
 if __name__ == "__main__":
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
@@ -42,6 +45,7 @@ if __name__ == "__main__":
     model = models.get_model(with_attribute=with_attribute,
                              num_classes=len(class_names),
                              num_attrs=len(attrs),
+                             num_features=CONFIG['MODEL']['NUM_FEATURES'],
                              with_reweighting=reweighting,
                              arch=CONFIG['MODEL']['ARCH'],
                              backbone=CONFIG['MODEL']['BACKBONE'])

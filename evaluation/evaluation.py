@@ -50,6 +50,7 @@ class Evaluation(object):
         print('Validation results: Loss {val_loss:.3f}, Prec@1 {top1:.3f}, Prec@2 {top2:.3f}, Prec@5 {top5:.3f}, '
               'Mean Class Accuracy {MCA:.3f}'.format(val_loss=val_loss, top1=val_top1, top2=val_top2, top5=val_top5,
                                                      MCA=np.mean(val_ClassAcc_top1)))
+        return val_top1
 
     def __eval(self, topk):
         batch_time = AverageMeter()
