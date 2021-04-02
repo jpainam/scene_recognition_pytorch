@@ -19,6 +19,7 @@ class ClassificationTrainer(BaseTrainer):
         prec1 = AverageMeter()
         prec2 = AverageMeter()
         prec5 = AverageMeter()
+        losses_attrs = AverageMeter()
 
         for step, (imgs, labels, orig_attrs) in enumerate(self.train_loader):
 
@@ -38,6 +39,7 @@ class ClassificationTrainer(BaseTrainer):
             if self.with_attribute:
                 loss = self.criterion[0](pred_id, labels)
                 loss_attrs = self.criterion[1](pred_attrs.float(), attrs.float())
+                losses_attrs.update(loss_attrs.item(), orig_attrs.size(0))
                 if epoch > 15:
                     loss += loss_attrs * 134. / pred_attrs.size(0)
             else:
@@ -61,6 +63,8 @@ class ClassificationTrainer(BaseTrainer):
             if self.summary_writer is not None:
                 global_step = epoch * len(self.train_loader) + step
                 self.summary_writer.add_scalar('train_loss', loss.item(), global_step)
+                if self.with_attribute:
+                    self.summary_writer.add_scalar('attr_loss', loss_attrs.item(), global_step)
                 self.summary_writer.add_scalar('train_acc', 1. * correct.avg, global_step)
                 self.summary_writer.add_scalar('prec1', prec1.avg, global_step)
                 self.summary_writer.add_scalar('prec2', prec2.avg, global_step)
@@ -80,6 +84,9 @@ class ClassificationTrainer(BaseTrainer):
                               prec2.val, prec2.avg,
                               prec5.val, prec5.avg
                               ))
+                if self.with_attribute:
+                    print('[{}] Loss attrs {:.3f} ({:.3f})'.format(step + 1,
+                                                                   losses_attrs.val, losses_attrs.avg))
 
         return correct.avg, losses.avg
 

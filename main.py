@@ -11,7 +11,7 @@ from torchsummary import summary
 import models
 from data.data_manager import get_data
 from evaluation.evaluation import Evaluation
-from trainer import ClassificationTrainer
+from trainer import ClassificationTrainer, AttributeTrainer
 from utils.loggers import Logger, mkdir_if_missing
 
 parser = argparse.ArgumentParser(description='Scene Recognition Training Procedure')
@@ -59,7 +59,7 @@ if __name__ == "__main__":
     print('save_dir/logs dir {}'.format(save_dir))
     model = models.get_model(num_classes=len(class_names),
                              with_attribute=with_attribute,
-                             with_reweighting=with_attribute,
+                             with_reweighting=reweighting,
                              num_features=CONFIG['MODEL']['NUM_FEATURES'],
                              num_attrs=len(attrs),
                              backbone=CONFIG['MODEL']['BACKBONE'],
@@ -84,16 +84,23 @@ if __name__ == "__main__":
     if torch.cuda.device_count() > 1:
         model = nn.DataParallel(model)
 
-    summary(model, (3, 224, 224))
-    trainer = ClassificationTrainer(model=model, train_loader=train_loader,
-                                    val_loader=val_loader,
-                                    num_attrs=len(attrs),
-                                    save_dir=save_dir,
-                                    attribute_list=attrs,
-                                    with_attribute=with_attribute,
-                                    summary_writer=summary_writer,
-                                    num_classes=CONFIG['DATASET']['NUM_CATEGORY'],
-                                    criterion=criterion, optimizer=optimizer, config=CONFIG)
+    # summary(model, (3, 224, 224))
+
+    trainer_args = {"model": model, "train_loader": train_loader,
+                    "val_loader": val_loader,
+                    "num_attrs": len(attrs),
+                    "save_dir": save_dir,
+                    "optimizer": optimizer,
+                    "summary_writer": summary_writer,
+                    "attribute_list": attrs,
+                    "with_attribute": with_attribute,
+                    "num_classes": CONFIG['DATASET']['NUM_CATEGORY'],
+                    "criterion": criterion,
+                    "config": CONFIG}
+    if with_attribute and not reweighting and False:
+        trainer = AttributeTrainer(**trainer_args)
+    else:
+        trainer = ClassificationTrainer(**trainer_args)
 
     evaluate = Evaluation(model=model,
                           dataloader=val_loader,

@@ -6,9 +6,9 @@ DATASET:
   NUM_CATEGORY: 397
 
 MODEL:
-  ARCH: 19
-  NUM_FEATURES: 512 #densenet=2208
-  BACKBONE: vgg
+  ARCH: 50
+  NUM_FEATURES: 2048 #densenet=2208 512=vgg resnet=resnext=2048
+  BACKBONE: resnet #vgg | resnet | resnext | densenet
   WITH_ATTRIBUTE: False
   ARM: False
 

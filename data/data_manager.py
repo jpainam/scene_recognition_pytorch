@@ -14,6 +14,7 @@ import numpy as np
 import os
 import pickle
 
+
 def get_data(dataset="MITIndoor67", root=None, train_folder='train',
              val_folder='val', batch_size=64, ten_crops=False,
              with_attribute=False):
@@ -48,8 +49,8 @@ def get_data(dataset="MITIndoor67", root=None, train_folder='train',
         ])
 
     if dataset == "ADE20K":
-        train_set = ADE20KDataset(root, folder="training", transform=train_transform, with_attribute=with_attribute)
-        val_set = ADE20KDataset(root, folder="validation", transform=val_transform, with_attribute=with_attribute)
+        train_set = ADE20KDataset(root, folder=train_folder, transform=train_transform, with_attribute=with_attribute)
+        val_set = ADE20KDataset(root, folder=val_folder, transform=val_transform, with_attribute=with_attribute)
         assert len(train_set) == 20210
         assert len(val_set) == 2000
         assert len(train_set.classes) == 1055

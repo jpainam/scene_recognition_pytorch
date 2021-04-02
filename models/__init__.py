@@ -4,6 +4,7 @@ from .resnext import *
 from .densenet import *
 from .vgg import VGGNet
 
+
 def get_model(num_classes=0,
               dropout=0.5,
               num_attrs=0,
@@ -20,13 +21,20 @@ def get_model(num_classes=0,
                        backbone=backbone,
                        with_reweighting=with_reweighting,
                        with_attribute=with_attribute)
+        for param in model.features.parameters():
+            param.requires_grad = False
+        for param in model.features.layer4[2].parameters():
+            param.requires_grad = True
+        for param in model.features.layer4[1].parameters():
+            param.requires_grad = True
+
     elif 'densenet' in backbone and arch == 161:
         model = DenseNet(pretrained=True,
                          num_features=num_features,
                          num_classes=num_classes)
     elif 'resnext' in backbone:
         model = ResNext(num_classes=num_classes)
-        for param in model.parameters():
+        for param in model.features.parameters():
             param.requires_grad = False
         # Unfreeze a layer
         for param in model.features.layer4[2].parameters():
@@ -36,8 +44,11 @@ def get_model(num_classes=0,
     elif 'vgg' in backbone:
         model = VGGNet(num_classes=num_classes,
                        num_features=num_features,
+                       num_attrs=num_attrs,
+                       with_reweighting=with_reweighting,
+                       with_attribute=with_attribute,
                        pretrained=True)
-        for param in model.parameters():
+        for param in model.features.parameters():
             param.requires_grad = False
         # Unfreeze some layers
         for param in model.features[-7:].parameters():

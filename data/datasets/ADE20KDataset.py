@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import pickle
 
+
 class ADE20KDataset(Dataset):
     """Class for ADE20K dataset."""
 
@@ -21,6 +22,7 @@ class ADE20KDataset(Dataset):
         self.root = root
         self.folder = f"{folder}".lower()
         self._transform = transform
+        self.train_val = 'val' if 'val' in folder else 'train'
 
         # Decode dataset scene categories
         self.classes = list()
@@ -36,7 +38,7 @@ class ADE20KDataset(Dataset):
         self.labels = list()
         self.labels_index = list()
 
-        fd = open(os.path.join(root, ("sceneCategories_" + self.folder + ".txt")))
+        fd = open(os.path.join(root, ("sceneCategories_" + self.folder.split("/")[-1] + ".txt")))
         for line in fd:
             name, label = line.split()
             self.imgs.append(name)
@@ -48,7 +50,7 @@ class ADE20KDataset(Dataset):
         assert self.nclasses == 1055
         self.with_attribute = with_attribute
         if with_attribute:
-            data = pickle.load(open(os.path.join(root, 'annotations.pkl', 'rb')))
+            data = pickle.load(open(os.path.join(root, f'{self.train_val}_annotations.pkl'), 'rb'))
             self.attribute_images = list(data['images'])
             self.attributes = data['attributes']
             # categories = data['categories']
@@ -77,7 +79,7 @@ class ADE20KDataset(Dataset):
         """
 
         # Get RGB image path and load it
-        img_name = os.path.join(self.root, "images", self.folder, (self.imgs[idx] + ".jpg"))
+        img_name = os.path.join(self.root, self.folder, (self.imgs[idx] + ".jpg"))
         img = Image.open(img_name)
 
         # Convert it to RGB if gray-scale
@@ -90,5 +92,5 @@ class ADE20KDataset(Dataset):
         assert self.labels_index[idx] == self.classes.index(self.labels[idx])
         attrs = []
         if self.with_attribute:
-            attrs = self.attribute_labels[self.attribute_images.index(self.labels[idx])]
+            attrs = self.attribute_labels[self.attribute_images.index(self.imgs[idx] + ".jpg")]
         return img, self.labels_index[idx], attrs

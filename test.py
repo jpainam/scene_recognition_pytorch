@@ -59,7 +59,7 @@ if __name__ == "__main__":
     # pretrained_dict = {key.replace("module.", ""): value for key, value in pretrained_dict.items()}
     model.load_state_dict(pretrained_dict)
 
-    if with_attribute:
+    if with_attribute and not reweighting and False:
         trainer = AttributeTrainer(model=model, train_loader=train_loader,
                                    val_loader=val_loader,
                                    num_attrs=len(attrs),
@@ -79,8 +79,8 @@ if __name__ == "__main__":
         model = nn.DataParallel(model)
 
     model.eval()
-    if with_attribute:
-        trainer.eval(epoch=100)
+    #if with_attribute:
+    #    trainer.eval(epoch=100)
     evaluate = Evaluation(model=model, dataloader=val_loader, classes=class_names,
                           ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                           with_attribute=CONFIG['MODEL']['WITH_ATTRIBUTE'])

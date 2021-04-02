@@ -8,7 +8,7 @@ class BaseTrainer:
                  attribute_list,
                  save_dir,
                  xi=.8,
-                 with_attribute=False):
+                 with_attribute=False, **kwargs):
         self.model = model
         self.save_dir = save_dir
         self.train_loader = train_loader
