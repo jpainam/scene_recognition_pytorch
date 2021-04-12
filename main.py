@@ -24,7 +24,7 @@ with_attribute = CONFIG['MODEL']['WITH_ATTRIBUTE']
 backbone_name = CONFIG['MODEL']['BACKBONE']
 ext_f = "baseline"
 if 'resnext' in backbone_name:
-    ext_f = "32x16d"
+    ext_f = "32x48d" #"32x16d"
 if reweighting:
     ext_f = "arm"
 elif with_attribute:

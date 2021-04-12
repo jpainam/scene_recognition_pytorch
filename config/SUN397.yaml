@@ -6,17 +6,17 @@ DATASET:
   NUM_CATEGORY: 397
 
 MODEL:
-  ARCH: 50
-  NUM_FEATURES: 2048 #densenet=2208 512=vgg resnet=resnext=2048
-  BACKBONE: resnet #vgg | resnet | resnext | densenet
-  WITH_ATTRIBUTE: False
+  ARCH: 50 # resnet=50|101 vgg=19 densenet=161
+  NUM_FEATURES: 2048 # densenet=2208 512=vgg resnet=resnext=2048
+  BACKBONE: resnext # vgg | resnet | resnext | densenet
+  WITH_ATTRIBUTE: True
   ARM: False
 
 TRAINING:
   EPOCH: 100
-  BATCH_SIZE: 128
+  BATCH_SIZE: 16
 
 TESTING:
-  BATCH_SIZE: 64
-  CHECKPOINT: best
+  BATCH_SIZE: 8
+  CHECKPOINT: best # best | 100 | 90 etc...
   TEN_CROPS: True

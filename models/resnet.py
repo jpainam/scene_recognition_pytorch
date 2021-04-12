@@ -22,7 +22,7 @@ class ResNet(nn.Module):
                  norm=False, with_attribute=False,
                  with_reweighting=False,
                  backbone='resnet',
-                 num_classes=0, stride=1, num_attrs=0):
+                 num_classes=0, stride=1, num_attrs=0, **kwargs):
         super(ResNet, self).__init__()
         assert num_classes != 0, 'The number of classes must be non null'
         self.depth = depth
@@ -51,10 +51,28 @@ class ResNet(nn.Module):
 
         self.classifier = ClassBlock(input_dim=self.num_features + (self.num_attrs if self.with_reweighting else 0),
                                      class_num=num_classes, activ='none')
+        #self.classifier = nn.Sequential(nn.Dropout(p=0.5),
+        #                                nn.Linear(self.num_features, 1024),
+        #                                nn.BatchNorm1d(1024),
+        #                                nn.Dropout(p=0.5),
+        #                                nn.LeakyReLU(inplace=True),
+        #                                nn.Linear(1024, self.num_classes),
+        #                                )
+
         if self.with_attribute:
             for a in range(self.num_attrs):
                 self.__setattr__("attr_%d" % a, ClassBlock(input_dim=self.num_features,
                                                            class_num=1, activ='none'))
+
+        #if self.with_attribute:
+        #    for a in range(self.num_attrs):
+        #        self.__setattr__("attr_%d" % a,  nn.Sequential(
+        #                                nn.Linear(self.num_features, 128),
+        #                                nn.BatchNorm1d(128),
+        #                                nn.LeakyReLU(inplace=True),
+        #                                nn.Dropout(p=0.5),
+        #                                nn.Linear(128, 1),
+        #                                ))
 
     '''def _inflate_reslayer(self, reslayer, height=0, width=0,
                           alpha_x=0, alpha_y=0, IA_idx=[], IA_channels=0):

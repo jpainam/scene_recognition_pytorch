@@ -9,7 +9,7 @@ class VGGNet(nn.Module):
                  with_attribute=False,
                  with_reweighting=False,
                  num_attrs=0,
-                 num_features=2208):
+                 num_features=2208, **kwargs):
         super(VGGNet, self).__init__()
         self.num_classes = num_classes
         self.num_attrs = num_attrs

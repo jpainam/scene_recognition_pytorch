@@ -4,7 +4,7 @@ from .block_model import ClassBlock
 
 
 class DenseNet(nn.Module):
-    def __init__(self, num_classes, pretrained=True, num_features=2208):
+    def __init__(self, num_classes, pretrained=True, num_features=2208, **kwargs):
         super(DenseNet, self).__init__()
         self.num_classes = num_classes
         model_ft = torchvision.models.densenet161(pretrained=pretrained)

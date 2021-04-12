@@ -19,7 +19,7 @@ backbone_name = CONFIG['MODEL']['BACKBONE']
 
 ext_f = "baseline"
 if 'resnext' in backbone_name:
-    ext_f = "32x16d"
+    ext_f = "32x48d" #"32x16d"
 if reweighting:
     ext_f = "arm"
 elif with_attribute:
@@ -36,8 +36,8 @@ checkpoint = osp.join('./checkpoints',
 if __name__ == "__main__":
     train_loader, val_loader, class_names, attrs = get_data(dataset=CONFIG['DATASET']['NAME'],
                                                             root=CONFIG['DATASET']['ROOT'],
-                                                            val_folder='val',
-                                                            train_folder='train',
+                                                            train_folder=CONFIG['DATASET']['TRAIN'],
+                                                            val_folder=CONFIG['DATASET']['VAL'],
                                                             batch_size=CONFIG['TESTING']['BATCH_SIZE'],
                                                             ten_crops=CONFIG['TESTING']['TEN_CROPS'],
                                                             with_attribute=with_attribute)

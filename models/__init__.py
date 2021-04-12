@@ -14,13 +14,17 @@ def get_model(num_classes=0,
               arch=50,
               backbone='resnet'
               ):
+    model_params = {
+        "depth": arch,
+        "pretrained": True,
+        "num_classes": num_classes,
+        "num_attrs": num_attrs,
+        "backbone": backbone,
+        "with_reweighting": with_reweighting,
+        "with_attribute": with_attribute
+    }
     if 'resnet' in backbone:
-        model = ResNet(depth=arch, pretrained=True,
-                       num_classes=num_classes,
-                       num_attrs=num_attrs,
-                       backbone=backbone,
-                       with_reweighting=with_reweighting,
-                       with_attribute=with_attribute)
+        model = ResNet(**model_params)
         for param in model.features.parameters():
             param.requires_grad = False
         for param in model.features.layer4[2].parameters():
@@ -29,11 +33,9 @@ def get_model(num_classes=0,
             param.requires_grad = True
 
     elif 'densenet' in backbone and arch == 161:
-        model = DenseNet(pretrained=True,
-                         num_features=num_features,
-                         num_classes=num_classes)
+        model = DenseNet(**model_params)
     elif 'resnext' in backbone:
-        model = ResNext(num_classes=num_classes)
+        model = ResNext(**model_params)
         for param in model.features.parameters():
             param.requires_grad = False
         # Unfreeze a layer
@@ -42,12 +44,7 @@ def get_model(num_classes=0,
         for param in model.features.layer4[1].parameters():
             param.requires_grad = True
     elif 'vgg' in backbone:
-        model = VGGNet(num_classes=num_classes,
-                       num_features=num_features,
-                       num_attrs=num_attrs,
-                       with_reweighting=with_reweighting,
-                       with_attribute=with_attribute,
-                       pretrained=True)
+        model = VGGNet(**model_params)
         for param in model.features.parameters():
             param.requires_grad = False
         # Unfreeze some layers
