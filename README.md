@@ -7,22 +7,23 @@ We mined 134 attributes for 4 datasets :
 * <a href="http://www-vpu.eps.uam.es/publications/SemanticAwareSceneRecognition/SUN397.zip">SUN397</a> 
 
 The attributes are annotated at the image level, 
-thus each in `annotations/dataset_name` file contains `134 x num_category` attributes for training and `134 x num_category` attributesfor test, where the label "image_index" denotes the identity. The training annotations are contained in the file `train_annotation.pkl` and testing/validation annotations are contained in `val_annotations.pkl` 
-
-#### File configuration
-Each annotation file is structured as follows:
+thus each `annotations` file contains 
 
 ```
-train_annotations.pkl: dict() --> dict_keys([images, categories, attributes, labels])
+dict() --> dict_keys([images, categories, attributes, labels])
     -- images: list() size = num_images
         list of image names (eg. airport_inside_0344.jpg)
     -- categories: list() size = num_images
         list of categories (eg. airport_inside)
-    -- attributes: list() = size = 134
+    -- attributes: list() size = 134
         the list of 134 object attributes (eg. person, wall, cup, bottle etc...)
     -- labels: matrix size = num_images x 134
-         Each index corresponds to the image from the images list and the category from the categories list
+         Row index of this matrix -> images[row_index] and categories[row_index]
 ```
+
+The annotations for training are contained in the file named `train_annotation.pkl`
+ and testing/validation annotations are contained in `val_annotations.pkl` 
+
 
 Object attribute  | Representation | label
 ------------- | ------------- | -----------
