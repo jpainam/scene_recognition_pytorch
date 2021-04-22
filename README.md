@@ -7,7 +7,7 @@ We mined 134 attributes for 4 datasets :
 * <a href="http://www-vpu.eps.uam.es/publications/SemanticAwareSceneRecognition/SUN397.zip">SUN397</a> 
 
 The attributes are annotated at the image level, 
-thus each `annotations` file contains 
+thus each `annotation` file contains 
 
 ```
 dict() --> dict_keys([images, categories, attributes, labels])
@@ -78,6 +78,30 @@ python main.py --config config/MITIndoor67.yaml
 ```
 python test.py --config config/MITIndoor67.yaml
 ```
+
+#### Results for scene recognition
+* MIT67 dataset
+
+Model | Top@1 | Top@5 | Top@10 
+------| ----- | ----- | ----- 
+MASR-VGG | 76.9  |  88.0 | 94.6 
+MASR-ResNet50  |  86.2  |  94.8 |  98.9 
+MASR-ResNext101  |  88.5  | 95.3  | 98.7 
+
+* SUN937 dataset
+
+Model | Top@1 | Top@5 | Top@10 
+------| ----- | ----- | ----- 
+MASR-VGG | 60.1  | 75.2  | 86.7
+MASR-ResNext101  | 75.01  | 86.8 | 94.6  
+
+* ADE20K dataset
+
+Model | Top@1 | Top@5 | Top@10 
+------| ----- | ----- | -----     
+MASR-VGG | 61.3 | 72.5 | 80.4
+MASR-ResNext101  | 64.4  | 75.2 | 85.1
+
 #### Attribute accuracy for SUN397
 ```
 person              77.4
