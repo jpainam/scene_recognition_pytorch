@@ -1,3 +1,5 @@
+#### [Paper] Scene recognition with objectness, attribute and category learning
+![The Overall framework](./imgs/framework.png)
 ### Datasets
 The annotated datasets can be found in `annotations` folder. 
 We mined 134 attributes for 4 datasets :

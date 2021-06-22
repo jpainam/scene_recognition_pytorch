@@ -17,3 +17,4 @@ indoor_scene_recognition.ipynb
 indoor_scene_recognition.py
 ttt.py
 /data/anno/
+.gitignore
